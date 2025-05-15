@@ -1,0 +1,42 @@
+@media (min-width: 768px) {
+  .credit-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 1.5rem;
+    grid-template-areas:
+      "title dob"
+      "firstName mobile"
+      "middleName email"
+      "surname postcode"
+      "address address";
+  }
+
+  .field-title {
+    grid-area: title;
+  }
+  .field-firstName {
+    grid-area: firstName;
+  }
+  .field-middleName {
+    grid-area: middleName;
+  }
+  .field-surname {
+    grid-area: surname;
+  }
+  .field-dob {
+    grid-area: dob;
+  }
+  .field-mobile {
+    grid-area: mobile;
+  }
+  .field-email {
+    grid-area: email;
+  }
+  .field-postcode {
+    grid-area: postcode;
+  }
+  .field-address {
+    grid-area: address;
+  }
+}
+
