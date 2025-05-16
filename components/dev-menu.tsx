@@ -7,10 +7,10 @@ export function DevMenu() {
   const pathname = usePathname()
 
   const links = [
-    { href: "/", label: "Credit Search" },
-    { href: "/loans", label: "Loans" },
-    { href: "/login", label: "Login" },
+    { href: "/", label: "Login" },
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/search", label: "Credit Search" },
+    { href: "/loans", label: "Loans" },
   ]
 
   return (

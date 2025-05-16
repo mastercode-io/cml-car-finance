@@ -10,7 +10,7 @@ export function NavBar() {
   return (
     <nav className="bg-[#2a343d] text-white py-4">
       <div className="container mx-auto px-4">
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <Link 
             href="/" 
             className={cn(
@@ -18,7 +18,34 @@ export function NavBar() {
               pathname === '/' && "text-[#55c0c0]"
             )}
           >
-            Home
+            Login
+          </Link>
+          <Link 
+            href="/dashboard" 
+            className={cn(
+              "hover:text-[#55c0c0] transition-colors",
+              pathname === '/dashboard' && "text-[#55c0c0]"
+            )}
+          >
+            Dashboard
+          </Link>
+          <Link 
+            href="/search" 
+            className={cn(
+              "hover:text-[#55c0c0] transition-colors",
+              pathname === '/search' && "text-[#55c0c0]"
+            )}
+          >
+            Credit Search
+          </Link>
+          <Link 
+            href="/loans" 
+            className={cn(
+              "hover:text-[#55c0c0] transition-colors",
+              pathname === '/loans' && "text-[#55c0c0]"
+            )}
+          >
+            Loans
           </Link>
         </div>
       </div>
