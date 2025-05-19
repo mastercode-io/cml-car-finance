@@ -226,10 +226,29 @@ export function CreditSearchForm() {
         return response.json();
       })
       .then(data => {
-        // Store the response in localStorage
-        localStorage.setItem('creditSearchResponse', JSON.stringify(data));
-        // Only redirect after successful response
-        router.push("/loans");
+        // Check if the response indicates an existing contact
+        console.log('Credit search response:', data);
+        console.log('Existing contact check:', data.result?.existingContact);
+        
+        if (data.result?.existingContact === true) {
+          // Store contactID and leadID for the login page
+          const contactID = data.result?.contactID || '';
+          const leadID = data.result?.leadID || '';
+          
+          console.log('Existing contact detected, storing IDs:', { contactID, leadID });
+          
+          // Store these IDs in localStorage for the login page to access
+          localStorage.setItem('contactID', contactID);
+          localStorage.setItem('leadID', leadID);
+          
+          // Redirect to login page with a parameter indicating it's a redirect from search
+          router.push('/?from=search');
+        } else {
+          // Store the response in localStorage (only for non-existing contacts)
+          localStorage.setItem('creditSearchResponse', JSON.stringify(data));
+          // Normal flow - redirect to loans page
+          router.push('/loans');
+        }
       })
       .catch(error => {
         console.error('Error:', error);
