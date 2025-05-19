@@ -30,6 +30,33 @@ interface Loan {
   carClaimID: string;
 }
 
+// Function to check if a loan is eligible (start date before 31.12.2021)
+const isLoanEligible = (startDate: string): boolean => {
+  try {
+    // Parse the start date - assuming format is DD/MM/YYYY or YYYY-MM-DD
+    const parts = startDate.includes('/') 
+      ? startDate.split('/').map(part => parseInt(part, 10))
+      : startDate.split('-').map(part => parseInt(part, 10));
+    
+    let loanDate: Date;
+    if (startDate.includes('/')) {
+      // DD/MM/YYYY format
+      loanDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    } else {
+      // YYYY-MM-DD format
+      loanDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    
+    // Cutoff date: 31.12.2021
+    const cutoffDate = new Date(2021, 11, 31); // Month is 0-indexed (11 = December)
+    
+    return loanDate <= cutoffDate;
+  } catch (error) {
+    console.error("Error parsing loan date:", error);
+    return false; // If there's an error parsing the date, consider it ineligible
+  }
+};
+
 export function CarLoansSelection() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [selectedLoans, setSelectedLoans] = useState<string[]>([])
@@ -62,17 +89,26 @@ export function CarLoansSelection() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedLoans(loans.map((loan) => loan.carClaimID))
+      // Only select eligible loans (start date before 31.12.2021)
+      const eligibleLoanIds = loans
+        .filter(loan => isLoanEligible(loan.Start_Date))
+        .map(loan => loan.carClaimID);
+      setSelectedLoans(eligibleLoanIds);
     } else {
-      setSelectedLoans([])
+      setSelectedLoans([]);
     }
   }
 
-  const handleSelectLoan = (loanId: string, checked: boolean) => {
+  const handleSelectLoan = (loan: Loan, checked: boolean) => {
+    // Check if loan is eligible before allowing selection
+    if (!isLoanEligible(loan.Start_Date)) {
+      return; // Don't allow selection of ineligible loans
+    }
+    
     if (checked) {
-      setSelectedLoans([...selectedLoans, loanId])
+      setSelectedLoans([...selectedLoans, loan.carClaimID])
     } else {
-      setSelectedLoans(selectedLoans.filter((id) => id !== loanId))
+      setSelectedLoans(selectedLoans.filter((id) => id !== loan.carClaimID))
     }
   }
 
@@ -115,7 +151,9 @@ export function CarLoansSelection() {
     }
   }
 
-  const allSelected = loans.length > 0 && selectedLoans.length === loans.length
+  // Count eligible loans for the "all selected" check
+  const eligibleLoans = loans.filter(loan => isLoanEligible(loan.Start_Date));
+  const allSelected = eligibleLoans.length > 0 && selectedLoans.length === eligibleLoans.length
 
   if (isLoading) {
     return (
@@ -132,6 +170,12 @@ export function CarLoansSelection() {
 
   return (
     <div className="space-y-6">
+      <div className="bg-[#3a444d] p-4 rounded-md mb-6">
+        <p className="text-white text-center" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+          Only car loans issued before 31 December, 2021 can be claimed
+        </p>
+      </div>
+      
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div className="h-5 w-5 flex items-center justify-center">
@@ -147,7 +191,7 @@ export function CarLoansSelection() {
             className="text-sm font-medium leading-none text-white peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             style={{ fontFamily: "Montserrat, sans-serif" }}
           >
-            Select All
+            Select All Eligible Loans
           </label>
         </div>
         <Button
@@ -177,19 +221,37 @@ export function CarLoansSelection() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {loans.map((loan) => (
-            <Card key={loan.Account_No} className="relative border-0 bg-[#3a444d] shadow-sm rounded-md mx-0">
-              <div className="absolute right-6 top-6">
-                <div className="h-5 w-5 flex items-center justify-center">
-                  <Checkbox
-                    id={`loan-${loan.Account_No}`}
-                    checked={selectedLoans.includes(loan.carClaimID)}
-                    onCheckedChange={(checked) => handleSelectLoan(loan.carClaimID, checked as boolean)}
-                    className="h-4 w-4 border-white data-[state=checked]:bg-[#55c0c0] data-[state=checked]:border-[#55c0c0] rounded-[0.25rem]"
-                  />
+          {loans.map((loan) => {
+            // Determine if loan is eligible based on start date
+            const isEligible = isLoanEligible(loan.Start_Date);
+            return (
+              <Card 
+                key={loan.Account_No} 
+                className={`relative border-0 shadow-sm rounded-md mx-0 ${
+                  isEligible ? 'bg-[#3a444d]' : 'bg-[#2a343d] opacity-75'
+                }`}
+              >
+                {!isEligible && (
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <div className="bg-[#1a242d] bg-opacity-70 px-3 py-1 rounded-md">
+                      <p className="text-xs text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Ineligible - After 31/12/2021
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute right-6 top-6">
+                  <div className="h-5 w-5 flex items-center justify-center">
+                    <Checkbox
+                      id={`loan-${loan.Account_No}`}
+                      checked={selectedLoans.includes(loan.carClaimID)}
+                      onCheckedChange={(checked) => handleSelectLoan(loan, checked as boolean)}
+                      disabled={!isEligible}
+                      className="h-4 w-4 border-white data-[state=checked]:bg-[#55c0c0] data-[state=checked]:border-[#55c0c0] rounded-[0.25rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
-              </div>
-              <CardContent className="p-6">
+                <CardContent className="p-6">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <h3 className="text-lg font-semibold text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
@@ -248,7 +310,8 @@ export function CarLoansSelection() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          );
+          })}
         </div>
       )}
 
