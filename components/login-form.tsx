@@ -39,6 +39,7 @@ const formSchema = z
 export function LoginForm() {
   const [step, setStep] = useState<"credentials" | "otp">("credentials")
   const [isLoading, setIsLoading] = useState(false)
+  const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile")
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -86,50 +87,85 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {step === "credentials" ? (
               <>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                        Email
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="john.smith@example.com"
-                          {...field}
-                          className="bg-white border-0 rounded-md"
-                        />
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
+                <div className="flex justify-center space-x-6 mb-4">
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="mobile-option"
+                      name="login-method"
+                      value="mobile"
+                      checked={loginMethod === "mobile"}
+                      onChange={() => setLoginMethod("mobile")}
+                      className="mr-2 h-4 w-4 accent-[#55c0c0]"
+                    />
+                    <label htmlFor="mobile-option" className="text-white cursor-pointer">
+                      Mobile
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="email-option"
+                      name="login-method"
+                      value="email"
+                      checked={loginMethod === "email"}
+                      onChange={() => setLoginMethod("email")}
+                      className="mr-2 h-4 w-4 accent-[#55c0c0]"
+                    />
+                    <label htmlFor="email-option" className="text-white cursor-pointer">
+                      Email
+                    </label>
+                  </div>
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="mobile"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                        Mobile
-                      </FormLabel>
-                      <FormControl>
-                        <div className="flex">
-                          <span className="inline-flex items-center border-0 border-r-0 border-input bg-gray-200 px-3 text-sm text-slate-500 rounded-l-md">
-                            +44
-                          </span>
+                {loginMethod === "email" && (
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
+                          Email
+                        </FormLabel>
+                        <FormControl>
                           <Input
-                            className="rounded-l-none rounded-r-md bg-white border-0"
-                            placeholder="7123456789"
+                            placeholder="john.smith@example.com"
                             {...field}
+                            className="bg-white border-0 rounded-md"
                           />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-red-400" />
-                    </FormItem>
-                  )}
-                />
+                        </FormControl>
+                        <FormMessage className="text-red-400" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {loginMethod === "mobile" && (
+                  <FormField
+                    control={form.control}
+                    name="mobile"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
+                          Mobile
+                        </FormLabel>
+                        <FormControl>
+                          <div className="flex">
+                            <span className="inline-flex items-center border-0 border-r-0 border-input bg-gray-200 px-3 text-sm text-slate-500 rounded-l-md">
+                              +44
+                            </span>
+                            <Input
+                              className="rounded-l-none rounded-r-md bg-white border-0"
+                              placeholder="7123456789"
+                              {...field}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-red-400" />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </>
             ) : (
               <FormField
