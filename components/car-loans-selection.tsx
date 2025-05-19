@@ -102,6 +102,9 @@ export function CarLoansSelection() {
         throw new Error('Failed to submit claims');
       }
       
+      // Clear localStorage to remove loan information
+      localStorage.removeItem('creditSearchResponse');
+      
       // Redirect to confirmation page
       window.location.href = "/confirmation";
     } catch (error) {
@@ -253,11 +256,18 @@ export function CarLoansSelection() {
         <div className="flex justify-end pt-6">
           <Button
             onClick={handleNext}
-            disabled={selectedLoans.length === 0}
+            disabled={selectedLoans.length === 0 || isSubmitting}
             className="bg-[#c73e48] text-white hover:bg-[#b03540] border-0 rounded-md h-10 px-6"
             style={{ fontFamily: "Montserrat, sans-serif" }}
           >
-            Next
+            {isSubmitting ? (
+              <>
+                <span className="mr-2">Processing</span>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              </>
+            ) : (
+              "Next"
+            )}
           </Button>
         </div>
       )}
