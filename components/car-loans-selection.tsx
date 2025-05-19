@@ -27,12 +27,16 @@ interface Loan {
   Account_No: string;
   Start_Date: string;
   Repayment_Period: string;
+  carClaimID: string;
 }
 
 export function CarLoansSelection() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [selectedLoans, setSelectedLoans] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [leadID, setLeadID] = useState("")
+  const [contactID, setContactID] = useState("")
 
   useEffect(() => {
     // Get the credit search response from localStorage
@@ -43,6 +47,12 @@ export function CarLoansSelection() {
         if (data.result?.claimList) {
           setLoans(data.result.claimList);
         }
+        if (data.result?.leadID) {
+          setLeadID(data.result.leadID);
+        }
+        if (data.result?.contactID) {
+          setContactID(data.result.contactID);
+        }
       } catch (error) {
         console.error('Error parsing credit search response:', error);
       }
@@ -52,7 +62,7 @@ export function CarLoansSelection() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedLoans(loans.map((loan) => loan.Account_No))
+      setSelectedLoans(loans.map((loan) => loan.carClaimID))
     } else {
       setSelectedLoans([])
     }
@@ -66,10 +76,40 @@ export function CarLoansSelection() {
     }
   }
 
-  const handleNext = () => {
-    console.log("Selected loans:", selectedLoans)
-    // Redirect to next page
-    window.location.href = "/dashboard"
+  const handleNext = async () => {
+    if (selectedLoans.length === 0) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      const payload = {
+        leadID,
+        contactID,
+        carClaimIDs: selectedLoans
+      };
+      
+      console.log("Submitting payload:", payload);
+      
+      const response = await fetch('/.netlify/functions/submit-claims', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to submit claims');
+      }
+      
+      // Redirect to confirmation page
+      window.location.href = "/confirmation";
+    } catch (error) {
+      console.error("Error submitting claims:", error);
+      alert("There was an error submitting your claims. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const allSelected = loans.length > 0 && selectedLoans.length === loans.length
@@ -109,11 +149,18 @@ export function CarLoansSelection() {
         </div>
         <Button
           onClick={handleNext}
-          disabled={selectedLoans.length === 0}
+          disabled={selectedLoans.length === 0 || isSubmitting}
           className="bg-[#c73e48] text-white hover:bg-[#b03540] border-0 rounded-md h-10 px-6"
           style={{ fontFamily: "Montserrat, sans-serif" }}
         >
-          Next
+          {isSubmitting ? (
+            <>
+              <span className="mr-2">Processing</span>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+            </>
+          ) : (
+            "Next"
+          )}
         </Button>
       </div>
 
@@ -133,8 +180,8 @@ export function CarLoansSelection() {
                 <div className="h-5 w-5 flex items-center justify-center">
                   <Checkbox
                     id={`loan-${loan.Account_No}`}
-                    checked={selectedLoans.includes(loan.Account_No)}
-                    onCheckedChange={(checked) => handleSelectLoan(loan.Account_No, checked as boolean)}
+                    checked={selectedLoans.includes(loan.carClaimID)}
+                    onCheckedChange={(checked) => handleSelectLoan(loan.carClaimID, checked as boolean)}
                     className="h-4 w-4 border-white data-[state=checked]:bg-[#55c0c0] data-[state=checked]:border-[#55c0c0] rounded-[0.25rem]"
                   />
                 </div>
