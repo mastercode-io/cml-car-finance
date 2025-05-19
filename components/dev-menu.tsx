@@ -2,9 +2,20 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 
 export function DevMenu() {
   const pathname = usePathname()
+  const [showDevMenu, setShowDevMenu] = useState(false)
+  
+  useEffect(() => {
+    // Check if DEV_MODE environment variable is set to 'true'
+    // Access environment variables safely
+    if (typeof window !== 'undefined') {
+      const devMode = process.env.NEXT_PUBLIC_DEV_MODE
+      setShowDevMenu(devMode === 'true')
+    }
+  }, [])
 
   const links = [
     { href: "/", label: "Login" },
@@ -13,6 +24,11 @@ export function DevMenu() {
     { href: "/loans", label: "Loans" },
   ]
 
+  // Don't render anything if dev mode is off
+  if (!showDevMenu) {
+    return null
+  }
+  
   return (
     <div className="sticky top-0 z-50 w-full bg-[#1a242d] text-white shadow-md">
       <div className="container flex items-center justify-between px-4 py-2">
