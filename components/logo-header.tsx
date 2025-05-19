@@ -18,8 +18,13 @@ export function LogoHeader() {
   return (
     <div className={`sticky ${topPosition} bg-gray-50 z-40 py-4 shadow-sm`}>
       <div className="px-4 md:px-6 flex justify-between items-center">
-        {/* CML Logo */}
-        <div className="relative h-[70px] w-[200px]">
+        {/* CML Logo with link */}
+        <a 
+          href="https://claimmyloss.co.uk" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="relative h-[70px] w-[200px] block"
+        >
           <Image
             src="/images/cml-logo.png"
             alt="Claim My Loss"
@@ -27,7 +32,7 @@ export function LogoHeader() {
             className="object-contain object-left"
             priority
           />
-        </div>
+        </a>
         
         {/* SRA Logo */}
         <div className="relative h-[70px] w-[200px]">
