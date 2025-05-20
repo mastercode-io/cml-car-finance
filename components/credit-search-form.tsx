@@ -210,6 +210,8 @@ export function CreditSearchForm() {
     };
 
     // Make the API request
+    console.log('Credit search - Starting API request with body:', JSON.stringify(requestBody));
+    
     fetch('/.netlify/functions/credit-search', {
       method: 'POST',
       headers: {
@@ -218,11 +220,21 @@ export function CreditSearchForm() {
       body: JSON.stringify(requestBody),
     })
       .then(response => {
+        console.log('Credit search - API response received:', { 
+          status: response.status, 
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
         if (!response.ok) {
+          console.error('Credit search - Response not OK:', response.status, response.statusText);
           return response.json().then(errorData => {
+            console.error('Credit search - Error data:', errorData);
             throw new Error(errorData.error || 'Failed to process credit search request');
           });
         }
+        console.log('Credit search - Response OK, parsing JSON');
         return response.json();
       })
       .then(data => {
@@ -251,7 +263,21 @@ export function CreditSearchForm() {
         }
       })
       .catch(error => {
-        console.error('Error:', error);
+        console.error('Credit search - Error in submission process:', { 
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+          toString: error.toString()
+        });
+        
+        // Log the environment
+        console.log('Credit search - Environment info:', { 
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'unknown'
+        });
+        
         alert('An error occurred while processing your request. Please try again later.');
       })
       .finally(() => {
