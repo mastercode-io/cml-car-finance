@@ -9,6 +9,7 @@ import { CalendarIcon, ChevronDown } from "lucide-react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { useRouter } from "next/navigation"
+import { startUserSession } from "@/utils/session"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -258,6 +259,17 @@ export function CreditSearchForm() {
         } else {
           // Store the response in localStorage (only for non-existing contacts)
           localStorage.setItem('creditSearchResponse', JSON.stringify(data));
+          
+          // Start a user session with the leadID and contactID from the response
+          const leadID = data.result?.leadID || '';
+          const contactID = data.result?.contactID || '';
+          
+          if (leadID || contactID) {
+            // Use a generic module name for credit search users
+            startUserSession(leadID || contactID, 'credit_search');
+            console.log('Started user session from credit search:', { leadID, contactID });
+          }
+          
           // Normal flow - redirect to loans page
           router.push('/loans');
         }

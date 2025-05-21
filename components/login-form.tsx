@@ -4,6 +4,7 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { startUserSession } from "@/utils/session"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +41,8 @@ export function LoginForm() {
   const [step, setStep] = useState<"credentials" | "otp">("credentials")
   const [isLoading, setIsLoading] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile")
+  const [otpError, setOtpError] = useState<{ status: string } | null>(null)
+  const [resendingOtp, setResendingOtp] = useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,23 +52,187 @@ export function LoginForm() {
       otp: "",
     },
   })
+  
+  // Function to resend OTP
+  async function resendOtp() {
+    setResendingOtp(true);
+    try {
+      const values = form.getValues();
+      const identifier = loginMethod === "email" ? values.email : values.mobile;
+      
+      if (!identifier) {
+        setStep("credentials");
+        return;
+      }
+      
+      // Call the Netlify function to send OTP
+      const response = await fetch('/.netlify/functions/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: loginMethod === "email" ? identifier : undefined,
+          mobile: loginMethod === "mobile" ? identifier : undefined
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // OTP resent successfully
+        setOtpError(null);
+        form.clearErrors("otp");
+      } else {
+        // Handle API error
+        setOtpError({
+          status: "error"
+        });
+      }
+    } catch (error) {
+      console.error('Error resending OTP:', error);
+      setOtpError({
+        status: "error"
+      });
+    } finally {
+      setResendingOtp(false);
+    }
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log('Form submitted with values:', values);
+    console.log('Current step:', step);
+    console.log('Login method:', loginMethod);
+    
+    // Clear any previous OTP errors
+    setOtpError(null);
+    
     if (step === "credentials") {
       setIsLoading(true)
-      // Simulate API call to send OTP
-      setTimeout(() => {
-        setIsLoading(false)
-        setStep("otp")
-      }, 1500)
+      console.log('Credentials step - setting isLoading to true');
+      
+      try {
+        // Only proceed with the selected login method
+        if (loginMethod === "email" && values.email) {
+          // Call the Netlify function to send OTP
+          const response = await fetch('/.netlify/functions/send-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: values.email }),
+          });
+          
+          const data = await response.json();
+          console.log('OTP API response:', response.status, data);
+          
+          if (response.ok) {
+            // OTP sent successfully, move to OTP verification step
+            setStep("otp");
+            // Clear any previous errors when entering OTP step
+            setOtpError(null);
+            form.clearErrors();
+          } else {
+            // Handle API error
+            form.setError("email", {
+              type: "manual",
+              message: data.error || "Failed to send verification code. Please try again."
+            });
+          }
+        } else if (loginMethod === "mobile" && values.mobile) {
+          // TODO: Implement mobile OTP flow when API is available
+          // For now, just simulate success
+          console.log('Mobile OTP flow - simulating success');
+          setStep("otp");
+          // Clear any previous errors when entering OTP step
+          setOtpError(null);
+          form.clearErrors();
+        } else {
+          // Handle validation error
+          const fieldName = loginMethod === "email" ? "email" : "mobile";
+          form.setError(fieldName, {
+            type: "manual",
+            message: `Please enter your ${loginMethod === "email" ? "email address" : "mobile number"}`
+          });
+        }
+      } catch (error) {
+        console.error('Error sending OTP:', error);
+        form.setError(loginMethod === "email" ? "email" : "mobile", {
+          type: "manual",
+          message: "An unexpected error occurred. Please try again."
+        });
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      setIsLoading(true)
-      // Simulate API call to verify OTP
-      setTimeout(() => {
-        setIsLoading(false)
-        // Redirect to dashboard on successful login
-        window.location.href = "/dashboard"
-      }, 1500)
+      // OTP verification step
+      setIsLoading(true);
+      
+      try {
+        console.log('Verifying OTP:', values.otp);
+        
+        // Get the email or mobile that was used to send the OTP
+        const identifier = loginMethod === "email" ? values.email : values.mobile;
+        
+        // Call the Netlify function to verify OTP
+        const response = await fetch('/.netlify/functions/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: loginMethod === "email" ? identifier : undefined,
+            mobile: loginMethod === "mobile" ? identifier : undefined,
+            otp: values.otp 
+          }),
+        });
+        
+        const data = await response.json();
+        console.log('OTP verification response:', response.status, data);
+        
+        if (response.ok && data.status === 'approved') {
+          // OTP verified successfully, store user data and redirect to dashboard
+          console.log('OTP verified successfully, user approved');
+          
+          // Start user session with the module and ID
+          if (data.module && data.id) {
+            startUserSession(data.id, data.module);
+            console.log('Started user session:', { module: data.module, id: data.id });
+          }
+          
+          // Redirect to dashboard
+          window.location.href = "/dashboard";
+        } else {
+          // Handle different error statuses
+          if (data.status === 'expired') {
+            // OTP has expired
+            // Don't set form error to avoid duplicate messages
+            setOtpError({
+              status: "expired"
+            });
+          } else if (data.status === 'used') {
+            // OTP has already been used
+            // Don't set form error to avoid duplicate messages
+            setOtpError({
+              status: "used"
+            });
+          } else {
+            // Generic error or not found
+            // Don't set form error to avoid duplicate messages
+            setOtpError({
+              status: "not_found"
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error verifying OTP:', error);
+        // Don't set form error to avoid duplicate messages
+        setOtpError({
+          status: "error"
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -84,7 +251,7 @@ export function LoginForm() {
       </CardHeader>
       <CardContent className="p-6 pt-2">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-6">
             {step === "credentials" ? (
               <>
                 <div className="flex justify-center space-x-6 mb-4">
@@ -168,28 +335,47 @@ export function LoginForm() {
                 )}
               </>
             ) : (
-              <FormField
-                control={form.control}
-                name="otp"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                      One-Time Password
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="123456" maxLength={6} {...field} className="bg-white border-0 rounded-md" />
-                    </FormControl>
-                    <FormMessage className="text-red-400" />
-                  </FormItem>
+              <>
+                <FormField
+                  control={form.control}
+                  name="otp"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
+                        One-Time Password
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="123456" maxLength={6} {...field} className="bg-white border-0 rounded-md" />
+                      </FormControl>
+                      <FormMessage className="text-red-400" />
+                    </FormItem>
+                  )}
+                />
+                
+                {otpError && (
+                  <div className="mt-2">
+                    <p className="text-red-400 text-sm mb-2">
+                      {otpError.status === 'expired' && 'Expired verification code.'}
+                      {otpError.status === 'used' && 'Expired verification code.'}
+                      {(otpError.status === 'not_found' || otpError.status === 'error') && 'Invalid verification code.'}<br />
+                      Please try again or request a new code.
+                    </p>
+                  </div>
                 )}
-              />
+              </>
             )}
 
             <Button
-              type="submit"
+              type="button"
               className="w-full bg-[#c73e48] text-white hover:bg-[#b03540] border-0 rounded-md h-12"
               style={{ fontFamily: "Montserrat, sans-serif" }}
               disabled={isLoading}
+              onClick={() => {
+                console.log('Button clicked directly');
+                const values = form.getValues();
+                console.log('Current form values:', values);
+                onSubmit(values);
+              }}
             >
               {isLoading ? (
                 <>
@@ -202,11 +388,29 @@ export function LoginForm() {
                 "Verify & Login"
               )}
             </Button>
-          </form>
+          </div>
         </Form>
       </CardContent>
       {step === "otp" && (
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex flex-col space-y-4">
+          {otpError && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full bg-[#55c0c0] text-white hover:bg-[#47a3a3] border-0 rounded-md h-10 text-sm"
+              onClick={resendOtp}
+              disabled={resendingOtp}
+            >
+              {resendingOtp ? (
+                <>
+                  <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Resending...
+                </>
+              ) : (
+                "Resend Verification Code"
+              )}
+            </Button>
+          )}
           <Button
             variant="link"
             onClick={() => setStep("credentials")}

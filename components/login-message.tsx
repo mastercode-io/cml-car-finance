@@ -12,14 +12,8 @@ export function LoginMessage() {
     
     console.log('Login message - URL check:', { url: window.location.href, fromSearch })
     
-    // Check localStorage as a fallback
-    const contactID = localStorage.getItem('contactID')
-    const leadID = localStorage.getItem('leadID')
-    
-    console.log('Login message - localStorage check:', { contactID, leadID })
-    
-    // Show message if either condition is true
-    setShowMessage(fromSearch || contactID !== null || leadID !== null)
+    // Only show message if URL parameter is present
+    setShowMessage(fromSearch)
   }, [])
 
   if (!showMessage) return null

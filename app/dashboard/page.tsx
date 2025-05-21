@@ -1,9 +1,16 @@
 "use client"
 
+import { useEffect } from "react"
 import { ClaimsDashboard } from "@/components/claims-dashboard"
 import { LogoHeader } from "@/components/logo-header"
+import { redirectIfNotAuthenticated } from "@/utils/session"
 
 export default function DashboardPage() {
+  // Check if user is authenticated on page load
+  useEffect(() => {
+    // Redirect to login page if not authenticated
+    redirectIfNotAuthenticated();
+  }, []);
   return (
     <main className="bg-white">
       <LogoHeader />

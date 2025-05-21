@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { CarLoansSelection } from "@/components/car-loans-selection"
 import { LogoHeader } from "@/components/logo-header"
+import { redirectIfNotAuthenticated } from "@/utils/session"
 
 interface CreditSearchResponse {
   result: {
@@ -18,6 +19,11 @@ export default function LoansPage() {
   const [creditSearchResponse, setCreditSearchResponse] = useState<CreditSearchResponse | null>(null);
 
   useEffect(() => {
+    // Check if user is authenticated
+    if (redirectIfNotAuthenticated()) {
+      return; // Stop execution if redirected
+    }
+    
     // Retrieve the credit search response from localStorage
     const storedResponse = localStorage.getItem('creditSearchResponse');
     if (storedResponse) {

@@ -1,9 +1,7 @@
 {
   "name": "netlify-functions",
   "version": "1.0.0",
-  "description": "Netlify Functions for HT Legal",
-  "main": "index.js",
   "dependencies": {
-    "axios": "^1.6.7"
+    "axios": "^1.9.0"
   }
-} 
+}
