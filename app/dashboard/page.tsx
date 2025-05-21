@@ -8,8 +8,25 @@ import { redirectIfNotAuthenticated } from "@/utils/session"
 export default function DashboardPage() {
   // Check if user is authenticated on page load
   useEffect(() => {
+    // Log session data for debugging
+    const sessionToken = localStorage.getItem('sessionToken');
+    const userModule = localStorage.getItem('userModule');
+    const sessionExpires = localStorage.getItem('sessionExpires');
+    
+    console.log('[Dashboard] Session check on load:', { 
+      hasSessionToken: !!sessionToken,
+      hasUserModule: !!userModule,
+      hasSessionExpires: !!sessionExpires,
+      sessionTokenPrefix: sessionToken ? sessionToken.substring(0, 10) + '...' : 'none',
+      userModule,
+      sessionExpires: sessionExpires ? new Date(parseInt(sessionExpires, 10)).toISOString() : 'none',
+      currentTime: new Date().toISOString(),
+      isExpired: sessionExpires ? Date.now() > parseInt(sessionExpires, 10) : true
+    });
+    
     // Redirect to login page if not authenticated
-    redirectIfNotAuthenticated();
+    const redirected = redirectIfNotAuthenticated();
+    console.log('[Dashboard] Redirect result:', redirected ? 'Redirected to login' : 'Authenticated');
   }, []);
   return (
     <main className="bg-white">
