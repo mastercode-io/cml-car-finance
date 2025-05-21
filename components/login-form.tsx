@@ -194,10 +194,12 @@ export function LoginForm() {
           // OTP verified successfully, store user data and redirect to dashboard
           console.log('OTP verified successfully, user approved');
           
-          // Start user session with the module and ID
-          if (data.module && data.id) {
-            startUserSession(data.id, data.module);
-            console.log('Started user session:', { module: data.module, id: data.id });
+          // Start user session with the module and session token
+          if (data.module && data.session_token) {
+            startUserSession(data.session_token, data.module);
+            console.log('Started user session:', { module: data.module, token: data.session_token });
+          } else {
+            console.error('Missing module or session_token in OTP verification response:', data);
           }
           
           // Redirect to dashboard

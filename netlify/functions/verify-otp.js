@@ -52,18 +52,36 @@ exports.handler = async function(event, context) {
     if (responseData.status === 'approved') {
       // OTP verified successfully
       console.log('OTP verification successful, user approved');
-      console.log('Module:', responseData.module, 'ID:', responseData.id);
       
-      // Store the module and ID in the response for frontend use
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success: true,
-          status: 'approved',
-          module: responseData.module,
-          id: responseData.id
-        })
-      };
+      // Check if the response contains the expected fields
+      if (responseData.module) {
+        console.log('Module:', responseData.module);
+        
+        // Use id as session_token if no explicit session_token is provided
+        const sessionToken = responseData.session_token || responseData.id;
+        console.log('Session token:', sessionToken);
+        
+        // Return the module and session_token for frontend use
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            success: true,
+            status: 'approved',
+            module: responseData.module,
+            session_token: sessionToken
+          })
+        };
+      } else {
+        console.error('Missing required fields in approved response:', responseData);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            success: false,
+            status: 'error',
+            error: 'Missing required authentication data in response'
+          })
+        };
+      }
     } else if (responseData.status === 'expired') {
       // OTP has expired
       console.log('OTP has expired');

@@ -8,13 +8,23 @@ const SESSION_DURATION = 30 * 60 * 1000;
 
 /**
  * Start or refresh a user session
- * @param userId User ID from authentication
+ * @param sessionToken Session token from authentication
  * @param userModule User module from authentication
  */
-export function startUserSession(userId: string, userModule: string): void {
-  localStorage.setItem('userId', userId);
+export function startUserSession(sessionToken: string, userModule: string): void {
+  localStorage.setItem('sessionToken', sessionToken);
   localStorage.setItem('userModule', userModule);
   refreshSessionExpiration();
+}
+
+/**
+ * Get the authentication token for API requests
+ * @returns The bearer token for authorization header or null if not authenticated
+ */
+export function getAuthToken(): string | null {
+  const sessionToken = localStorage.getItem('sessionToken');
+  if (!sessionToken) return null;
+  return sessionToken;
 }
 
 /**
@@ -31,12 +41,12 @@ export function refreshSessionExpiration(): void {
  * @returns boolean indicating if user is authenticated with valid session
  */
 export function isAuthenticated(): boolean {
-  const userId = localStorage.getItem('userId');
+  const sessionToken = localStorage.getItem('sessionToken');
   const userModule = localStorage.getItem('userModule');
   const sessionExpires = localStorage.getItem('sessionExpires');
   
   // Check if all required session data exists
-  if (!userId || !userModule || !sessionExpires) {
+  if (!sessionToken || !userModule || !sessionExpires) {
     return false;
   }
   
@@ -57,7 +67,7 @@ export function isAuthenticated(): boolean {
  * Clear all user session data
  */
 export function clearUserSession(): void {
-  localStorage.removeItem('userId');
+  localStorage.removeItem('sessionToken');
   localStorage.removeItem('userModule');
   localStorage.removeItem('sessionExpires');
 }
