@@ -140,13 +140,31 @@ export function LoginForm() {
             });
           }
         } else if (loginMethod === "mobile" && values.mobile) {
-          // TODO: Implement mobile OTP flow when API is available
-          // For now, just simulate success
-          console.log('Mobile OTP flow - simulating success');
-          setStep("otp");
-          // Clear any previous errors when entering OTP step
-          setOtpError(null);
-          form.clearErrors();
+          // Call the Netlify function to send OTP to mobile
+          const response = await fetch('/.netlify/functions/send-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ mobile: values.mobile }),
+          });
+          
+          const data = await response.json();
+          console.log('Mobile OTP API response:', response.status, data);
+          
+          if (response.ok) {
+            // OTP sent successfully, move to OTP verification step
+            setStep("otp");
+            // Clear any previous errors when entering OTP step
+            setOtpError(null);
+            form.clearErrors();
+          } else {
+            // Handle API error
+            form.setError("mobile", {
+              type: "manual",
+              message: data.error || "Failed to send verification code. Please try again."
+            });
+          }
         } else {
           // Handle validation error
           const fieldName = loginMethod === "email" ? "email" : "mobile";

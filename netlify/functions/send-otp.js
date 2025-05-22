@@ -12,22 +12,24 @@ exports.handler = async function(event, context) {
   try {
     // Parse the request body
     const requestBody = JSON.parse(event.body);
-    const { email } = requestBody;
+    const { email, mobile } = requestBody;
 
-    // Validate email
-    if (!email || typeof email !== 'string') {
+    // Validate that either email or mobile is provided
+    if ((!email || typeof email !== 'string') && (!mobile || typeof mobile !== 'string')) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Email is required' })
+        body: JSON.stringify({ error: 'Either email or mobile is required' })
       };
     }
 
-    console.log(`Sending OTP to email: ${email}`);
+    // Prepare the payload for Zoho API
+    const payload = email ? { email } : { mobile };
+    console.log(`Sending OTP to: ${email || mobile}`);
 
     // Call the Zoho API to send OTP
     const zohoResponse = await axios.post(
       'https://www.zohoapis.eu/crm/v7/functions/cmlportalotp/actions/execute?auth_type=apikey&zapikey=1003.0f6c22c14bf2d30cf7c97fec7729e4a9.1b01e1da86ebfaee8dbd8d022d5a91fb',
-      { email }
+      payload
     );
 
     console.log('Zoho API response:', zohoResponse.status, zohoResponse.data);

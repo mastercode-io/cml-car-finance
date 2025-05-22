@@ -12,16 +12,9 @@ exports.handler = async function(event, context) {
   try {
     // Parse the request body
     const requestBody = JSON.parse(event.body);
-    const { email, otp } = requestBody;
+    const { email, mobile, otp } = requestBody;
 
     // Validate required fields
-    if (!email || typeof email !== 'string') {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Email is required' })
-      };
-    }
-
     if (!otp || typeof otp !== 'string') {
       return {
         statusCode: 400,
@@ -29,19 +22,33 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Determine the channel (email or mobile)
-    const channel = email ? 'email' : 'mobile';
-    const identifier = email || mobile;
+    // Determine if this is an email or mobile verification
+    let payload;
+    if (email && typeof email === 'string') {
+      payload = {
+        channel: 'email',
+        email,
+        otp: String(otp)
+      };
+    } else if (mobile && typeof mobile === 'string') {
+      payload = {
+        channel: 'sms',
+        mobile,
+        otp: String(otp)
+      };
+    } else {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Either email or mobile is required' })
+      };
+    }
     
-    console.log(`Verifying OTP for ${channel}: ${identifier}, OTP: ${otp}`);
+    console.log(`Verifying OTP for ${payload.channel}: ${email || mobile}, OTP: ${otp}`);
 
     // Call the Zoho API to verify OTP
     const zohoResponse = await axios.post(
       'https://www.zohoapis.eu/crm/v7/functions/cmlportalverifyotp/actions/execute?auth_type=apikey&zapikey=1003.0f6c22c14bf2d30cf7c97fec7729e4a9.1b01e1da86ebfaee8dbd8d022d5a91fb',
-      { 
-        channel, 
-        otp 
-      }
+      payload
     );
 
     console.log('Zoho API response:', zohoResponse.status, zohoResponse.data);
