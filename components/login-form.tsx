@@ -44,6 +44,14 @@ export function LoginForm() {
   const [otpError, setOtpError] = useState<{ status: string } | null>(null)
   const [resendingOtp, setResendingOtp] = useState(false)
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const values = form.getValues();
+      onSubmit(values);
+    }
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -318,6 +326,7 @@ export function LoginForm() {
                           <Input
                             placeholder="john.smith@example.com"
                             {...field}
+                            onKeyPress={handleKeyPress}
                             className="bg-white border-0 rounded-md"
                           />
                         </FormControl>
@@ -344,6 +353,7 @@ export function LoginForm() {
                             <Input
                               className="rounded-l-none rounded-r-md bg-white border-0"
                               placeholder="7123456789"
+                              onKeyPress={handleKeyPress}
                               {...field}
                             />
                           </div>
@@ -365,7 +375,13 @@ export function LoginForm() {
                         One-Time Password
                       </FormLabel>
                       <FormControl>
-                        <Input placeholder="123456" maxLength={6} {...field} className="bg-white border-0 rounded-md" />
+                        <Input 
+                          placeholder="123456" 
+                          maxLength={6} 
+                          onKeyPress={handleKeyPress}
+                          {...field} 
+                          className="bg-white border-0 rounded-md" 
+                        />
                       </FormControl>
                       <FormMessage className="text-red-400" />
                     </FormItem>
