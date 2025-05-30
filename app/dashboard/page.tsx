@@ -8,18 +8,94 @@ import { ChevronDown, ChevronUp } from "lucide-react"
 
 interface Claim {
   id: string
-  company: string
+  provider: string
   startDate: string
-  stage: string
+  currentStage: string
   stageStartDate: string
-  expectedAmount: number
-  expectedResolutionDate: string
+  expectedResolution: string
+  potentialAmount: number
+  status?: 'open' | 'closed'
+  completedDate?: string
+  settlementAmount?: number
 }
 
 export default function DashboardPage() {
-  const [openClaims, setOpenClaims] = useState<Claim[]>([]);
-  const [closedClaims, setClosedClaims] = useState<Claim[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Mock data for development and testing
+  const mockOpenClaims: Claim[] = [
+    {
+      id: "claim-1",
+      provider: "HYUNDAI CAPITAL UK LTD",
+      startDate: "27 May, 2025",
+      currentStage: "Pack Out",
+      stageStartDate: "27 May, 2025",
+      expectedResolution: "02 December, 2025",
+      potentialAmount: 0,
+      status: 'open'
+    },
+    {
+      id: "claim-2",
+      provider: "BLACK HORSE LTD",
+      startDate: "27 May, 2025",
+      currentStage: "Pack Out",
+      stageStartDate: "27 May, 2025",
+      expectedResolution: "02 December, 2025",
+      potentialAmount: 0,
+      status: 'open'
+    },
+    {
+      id: "claim-3",
+      provider: "HYUNDAI CAPITAL UK LTD",
+      startDate: "27 May, 2025",
+      currentStage: "Pack Out",
+      stageStartDate: "27 May, 2025",
+      expectedResolution: "02 December, 2025",
+      potentialAmount: 0,
+      status: 'open'
+    }
+  ];
+
+  const mockClosedClaims: Claim[] = [
+    {
+      id: "claim-4",
+      provider: "SANTANDER CONSUMER UK",
+      startDate: "15 Jan, 2025",
+      currentStage: "Completed",
+      stageStartDate: "20 Apr, 2025",
+      expectedResolution: "30 Apr, 2025",
+      potentialAmount: 2500,
+      status: 'closed',
+      completedDate: "30 Apr, 2025",
+      settlementAmount: 2500
+    },
+    {
+      id: "claim-5",
+      provider: "BARCLAYS PARTNER FINANCE",
+      startDate: "03 Dec, 2024",
+      currentStage: "Completed",
+      stageStartDate: "15 Mar, 2025",
+      expectedResolution: "15 Mar, 2025",
+      potentialAmount: 1850,
+      status: 'closed',
+      completedDate: "15 Mar, 2025",
+      settlementAmount: 1850
+    },
+    {
+      id: "claim-6",
+      provider: "MERCEDES-BENZ FINANCIAL",
+      startDate: "22 Oct, 2024",
+      currentStage: "Completed",
+      stageStartDate: "28 Feb, 2025",
+      expectedResolution: "28 Feb, 2025",
+      potentialAmount: 3200,
+      status: 'closed',
+      completedDate: "28 Feb, 2025",
+      settlementAmount: 3200
+    }
+  ];
+
+  const [openClaims, setOpenClaims] = useState<Claim[]>(mockOpenClaims);
+  const [closedClaims, setClosedClaims] = useState<Claim[]>(mockClosedClaims);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openSectionCollapsed, setOpenSectionCollapsed] = useState(false);
   const [closedSectionCollapsed, setClosedSectionCollapsed] = useState(true);
@@ -49,10 +125,10 @@ export default function DashboardPage() {
     const redirected = redirectIfNotAuthenticated();
     console.log('[Dashboard] Redirect result:', redirected ? 'Redirected to login' : 'Authenticated');
     
-    // If authenticated, fetch claims data
-    if (!redirected && !hasFetchedRef.current) {
-      fetchClaimsData();
-    }
+    // For development, we're using mock data instead of API calls
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 500); // Simulate a short loading time
   }, []);
   
   // Function to fetch claims data
@@ -151,24 +227,32 @@ export default function DashboardPage() {
           // Map the API response to our Claim interface
           const fetchedClaims = claimsData.map((item: any) => ({
             id: item.id || `claim-${Math.random().toString(36).substr(2, 9)}`,
-            company: item.company || 'Unknown Company',
+            provider: item.provider || item.company || 'Unknown Company',
             startDate: item.startDate || 'N/A',
-            stage: item.stage || 'Processing',
+            currentStage: item.currentStage || item.stage || 'Processing',
             stageStartDate: item.stageStartDate || 'N/A',
-            expectedAmount: parseFloat(item.expectedAmount) || 0,
-            expectedResolutionDate: item.expectedResolutionDate || 'To be determined'
+            expectedResolution: item.expectedResolution || item.expectedResolutionDate || 'To be determined',
+            potentialAmount: parseFloat(item.potentialAmount || item.expectedAmount) || 0,
+            status: (item.currentStage === 'Completed' || item.stage === 'Completed' || item.status === 'closed') ? 'closed' : 'open',
+            completedDate: item.completedDate || null,
+            settlementAmount: parseFloat(item.settlementAmount) || 0
           }));
           
-          // Separate claims into open and closed based on stage
-          // For this example, we'll consider claims with stage 'Completed' or 'Closed' as closed claims
+          // Separate claims into open and closed based on status
           const open: Claim[] = [];
           const closed: Claim[] = [];
           
           fetchedClaims.forEach(claim => {
-            if (claim.stage === 'Completed' || claim.stage === 'Closed') {
-              closed.push(claim);
+            // Ensure status is either 'open' or 'closed'
+            const claimWithValidStatus = {
+              ...claim,
+              status: claim.status === 'closed' ? 'closed' : 'open'
+            } as Claim;
+            
+            if (claimWithValidStatus.status === 'closed') {
+              closed.push(claimWithValidStatus);
             } else {
-              open.push(claim);
+              open.push(claimWithValidStatus);
             }
           });
           
@@ -231,7 +315,7 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <p className="text-xs text-gray-400 mb-1" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>Total claimed amount</p>
                   <p className="text-lg text-[#ffeb00]" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                    £{openClaims.reduce((total, claim) => total + claim.expectedAmount, 0).toLocaleString()}
+                    £{openClaims.reduce((total, claim) => total + claim.potentialAmount, 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -248,7 +332,7 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <p className="text-xs text-gray-400 mb-1" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>Total settlement received</p>
                   <p className="text-lg text-[#55c0c0]" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                    £{closedClaims.reduce((total, claim) => total + claim.expectedAmount, 0).toLocaleString()}
+                    £{closedClaims.reduce((total, claim) => total + (claim.settlementAmount || 0), 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -330,7 +414,7 @@ export default function DashboardPage() {
           </div>
           
           {!closedSectionCollapsed && (
-            <div className="bg-[#2a343d] p-6 rounded-md">
+            <div className="bg-[#2a343d] p-6 rounded-md mb-16">
               {isLoading ? (
                 <div className="flex justify-center items-center h-40">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
@@ -355,6 +439,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+      <div className="pb-16"></div>
     </main>
   )
 }
