@@ -10,98 +10,40 @@ interface Claim {
   id: string
   provider: string
   startDate: string
-  currentStage: string
+  stage: string
+  sub_status: string
   stageStartDate: string
-  expectedResolution: string
   potentialAmount: number
-  status?: 'open' | 'closed'
-  completedDate?: string
-  settlementAmount?: number
+  expectedResolutionDate: string
+}
+
+interface ContactInfo {
+  firstName: string
+  lastName: string
+  email: string
+  mobile: string
+  referenceNumber: string
+}
+
+interface ApiResponse {
+  contactInfo: ContactInfo
+  claimList: Claim[]
 }
 
 export default function DashboardPage() {
-  // Mock data for development and testing
-  const mockOpenClaims: Claim[] = [
-    {
-      id: "claim-1",
-      provider: "HYUNDAI CAPITAL UK LTD",
-      startDate: "27 May, 2025",
-      currentStage: "Pack Out",
-      stageStartDate: "27 May, 2025",
-      expectedResolution: "02 December, 2025",
-      potentialAmount: 0,
-      status: 'open'
-    },
-    {
-      id: "claim-2",
-      provider: "BLACK HORSE LTD",
-      startDate: "27 May, 2025",
-      currentStage: "Pack Out",
-      stageStartDate: "27 May, 2025",
-      expectedResolution: "02 December, 2025",
-      potentialAmount: 0,
-      status: 'open'
-    },
-    {
-      id: "claim-3",
-      provider: "HYUNDAI CAPITAL UK LTD",
-      startDate: "27 May, 2025",
-      currentStage: "Pack Out",
-      stageStartDate: "27 May, 2025",
-      expectedResolution: "02 December, 2025",
-      potentialAmount: 0,
-      status: 'open'
-    }
-  ];
-
-  const mockClosedClaims: Claim[] = [
-    {
-      id: "claim-4",
-      provider: "SANTANDER CONSUMER UK",
-      startDate: "15 Jan, 2025",
-      currentStage: "Completed",
-      stageStartDate: "20 Apr, 2025",
-      expectedResolution: "30 Apr, 2025",
-      potentialAmount: 2500,
-      status: 'closed',
-      completedDate: "30 Apr, 2025",
-      settlementAmount: 2500
-    },
-    {
-      id: "claim-5",
-      provider: "BARCLAYS PARTNER FINANCE",
-      startDate: "03 Dec, 2024",
-      currentStage: "Completed",
-      stageStartDate: "15 Mar, 2025",
-      expectedResolution: "15 Mar, 2025",
-      potentialAmount: 1850,
-      status: 'closed',
-      completedDate: "15 Mar, 2025",
-      settlementAmount: 1850
-    },
-    {
-      id: "claim-6",
-      provider: "MERCEDES-BENZ FINANCIAL",
-      startDate: "22 Oct, 2024",
-      currentStage: "Completed",
-      stageStartDate: "28 Feb, 2025",
-      expectedResolution: "28 Feb, 2025",
-      potentialAmount: 3200,
-      status: 'closed',
-      completedDate: "28 Feb, 2025",
-      settlementAmount: 3200
-    }
-  ];
-
-  const [openClaims, setOpenClaims] = useState<Claim[]>(mockOpenClaims);
-  const [closedClaims, setClosedClaims] = useState<Claim[]>(mockClosedClaims);
-  const [isLoading, setIsLoading] = useState(false);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openSectionCollapsed, setOpenSectionCollapsed] = useState(false);
   const [closedSectionCollapsed, setClosedSectionCollapsed] = useState(true);
   
   // Use a ref to track if we've already fetched data to prevent duplicate requests
   const hasFetchedRef = useRef(false);
+
+  // Separate claims into open and closed (for now, all claims are considered "open" since API doesn't specify status)
+  const openClaims = claims; // All claims from API are treated as open for now
+  const closedClaims: Claim[] = []; // Empty for now since API doesn't provide closed claims
 
   // Check if user is authenticated and fetch claims data on page load
   useEffect(() => {
@@ -125,10 +67,10 @@ export default function DashboardPage() {
     const redirected = redirectIfNotAuthenticated();
     console.log('[Dashboard] Redirect result:', redirected ? 'Redirected to login' : 'Authenticated');
     
-    // For development, we're using mock data instead of API calls
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 500); // Simulate a short loading time
+    if (!redirected) {
+      // Only fetch data if user is authenticated
+      fetchClaimsData();
+    }
   }, []);
   
   // Function to fetch claims data
@@ -187,88 +129,45 @@ export default function DashboardPage() {
           console.error(`[Dashboard] API error (request ID: ${requestId}):`, errorMsg);
           setError(errorMsg);
         }
-        setOpenClaims([]);
-        setClosedClaims([]);
-        setIsLoading(false); // Ensure loading state is turned off for error responses
+        setClaims([]);
+        setContactInfo(null);
+        setIsLoading(false);
       } else {
         // Handle successful response
         console.log('Claims data response:', data);
         
-        // Check if data is in the expected format
-        // Zoho might return data in different formats, so we need to handle various possibilities
-        let claimsData = data;
+        // The API should return the response in the format: { contactInfo: {...}, claimList: [...] }
+        let apiResponse: ApiResponse;
         
-        // If data is a string that looks like JSON objects without array brackets
-        if (typeof data === 'string' && data.includes('},{')) {
-          try {
-            console.log('Attempting to parse string data as JSON array');
-            claimsData = JSON.parse(`[${data}]`);
-          } catch (e) {
-            console.error('Error parsing claims data string:', e);
-          }
-        }
-        
-        // If data is wrapped in a data property (common Zoho format)
-        if (!Array.isArray(claimsData) && claimsData?.data) {
-          claimsData = claimsData.data;
-        }
-        
-        // If data is wrapped in a claims property
-        if (!Array.isArray(claimsData) && claimsData?.claims) {
-          claimsData = claimsData.claims;
-        }
-        
-        // If claimsData is a single object (not an array), convert it to an array
-        if (!Array.isArray(claimsData) && typeof claimsData === 'object' && claimsData !== null) {
-          claimsData = [claimsData];
-        }
-        
-        if (Array.isArray(claimsData) && claimsData.length > 0) {
-          // Map the API response to our Claim interface
-          const fetchedClaims = claimsData.map((item: any) => ({
-            id: item.id || `claim-${Math.random().toString(36).substr(2, 9)}`,
-            provider: item.provider || item.company || 'Unknown Company',
-            startDate: item.startDate || 'N/A',
-            currentStage: item.currentStage || item.stage || 'Processing',
-            stageStartDate: item.stageStartDate || 'N/A',
-            expectedResolution: item.expectedResolution || item.expectedResolutionDate || 'To be determined',
-            potentialAmount: parseFloat(item.potentialAmount || item.expectedAmount) || 0,
-            status: (item.currentStage === 'Completed' || item.stage === 'Completed' || item.status === 'closed') ? 'closed' : 'open',
-            completedDate: item.completedDate || null,
-            settlementAmount: parseFloat(item.settlementAmount) || 0
-          }));
-          
-          // Separate claims into open and closed based on status
-          const open: Claim[] = [];
-          const closed: Claim[] = [];
-          
-          fetchedClaims.forEach(claim => {
-            // Ensure status is either 'open' or 'closed'
-            const claimWithValidStatus = {
-              ...claim,
-              status: claim.status === 'closed' ? 'closed' : 'open'
-            } as Claim;
-            
-            if (claimWithValidStatus.status === 'closed') {
-              closed.push(claimWithValidStatus);
-            } else {
-              open.push(claimWithValidStatus);
-            }
-          });
-          
-          setOpenClaims(open);
-          setClosedClaims(closed);
+        // Handle different possible response formats
+        if (Array.isArray(data)) {
+          // If data is an array, take the first item
+          apiResponse = data[0] as ApiResponse;
         } else {
-          // Empty claims arrays
-          setOpenClaims([]);
-          setClosedClaims([]);
+          // If data is already an object
+          apiResponse = data as ApiResponse;
+        }
+        
+        if (apiResponse && apiResponse.claimList && Array.isArray(apiResponse.claimList)) {
+          // Set the contact info
+          if (apiResponse.contactInfo) {
+            setContactInfo(apiResponse.contactInfo);
+          }
+          
+          // Set the claims data
+          setClaims(apiResponse.claimList);
+          console.log(`[Dashboard] Successfully loaded ${apiResponse.claimList.length} claims`);
+        } else {
+          console.log('[Dashboard] No claims found in response');
+          setClaims([]);
+          setContactInfo(null);
         }
       }
     } catch (err) {
       console.error('Error fetching claims:', err);
       setError('Unable to connect to the claims service. Please try again later.');
-      setOpenClaims([]);
-      setClosedClaims([]);
+      setClaims([]);
+      setContactInfo(null);
     } finally {
       setIsLoading(false);
       console.log(`[Dashboard] Fetch completed (request ID: ${requestId})`);
@@ -284,6 +183,57 @@ export default function DashboardPage() {
   const toggleClosedCollapse = () => {
     setClosedSectionCollapsed(!closedSectionCollapsed);
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <main className="bg-white">
+        <LogoHeader />
+        <div className="container px-4 md:px-6 pt-4 pb-16">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div className="text-center">
+              <h1
+                className="text-3xl font-bold tracking-tight text-black sm:text-4xl"
+                style={{ fontFamily: "Montserrat, sans-serif" }}
+              >
+                Your Claims Dashboard
+              </h1>
+              <div className="mt-2 mx-auto w-40 h-1 bg-[#55c0c0]"></div>
+              <p className="mt-6 text-lg text-gray-600" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                Loading your claims data...
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <main className="bg-white">
+        <LogoHeader />
+        <div className="container px-4 md:px-6 pt-4 pb-16">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div className="text-center">
+              <h1
+                className="text-3xl font-bold tracking-tight text-black sm:text-4xl"
+                style={{ fontFamily: "Montserrat, sans-serif" }}
+              >
+                Your Claims Dashboard
+              </h1>
+              <div className="mt-2 mx-auto w-40 h-1 bg-[#55c0c0]"></div>
+              <p className="mt-6 text-lg text-red-600" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                {error}
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="bg-white">
       <LogoHeader />
@@ -300,6 +250,11 @@ export default function DashboardPage() {
             <p className="mt-6 text-lg text-gray-600" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
               Track the progress of your compensation claims
             </p>
+            {contactInfo && (
+              <p className="mt-2 text-sm text-gray-500" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                Welcome back, {contactInfo.firstName} {contactInfo.lastName} (Ref: {contactInfo.referenceNumber})
+              </p>
+            )}
           </div>
 
           {/* Summary Widgets */}
@@ -313,7 +268,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>{openClaims.length}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400 mb-1" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>Total claimed amount</p>
+                  <p className="text-xs text-gray-400 mb-1" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>Total potential amount</p>
                   <p className="text-lg text-[#ffeb00]" style={{ fontFamily: "Montserrat, sans-serif" }}>
                     £{openClaims.reduce((total, claim) => total + claim.potentialAmount, 0).toLocaleString()}
                   </p>
@@ -332,12 +287,13 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <p className="text-xs text-gray-400 mb-1" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>Total settlement received</p>
                   <p className="text-lg text-[#55c0c0]" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                    £{closedClaims.reduce((total, claim) => total + (claim.settlementAmount || 0), 0).toLocaleString()}
+                    £{closedClaims.reduce((total, claim) => total + (claim.potentialAmount || 0), 0).toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
           </div>
+
           {/* Open Claims Section */}
           <div className="mb-4">
             <div className="flex items-center justify-between">
@@ -349,45 +305,28 @@ export default function DashboardPage() {
                   {openClaims.length}
                 </span>
               </div>
-              <button 
-                onClick={toggleOpenCollapse} 
-                className="p-1 rounded-full hover:bg-gray-200 transition-colors"
-                aria-label={openSectionCollapsed ? "Expand section" : "Collapse section"}
+              <button
+                onClick={toggleOpenCollapse}
+                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 transition-colors"
               >
+                <span className="text-sm" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                  {openSectionCollapsed ? 'Show' : 'Hide'}
+                </span>
                 {openSectionCollapsed ? (
-                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                  <ChevronDown className="h-4 w-4" />
                 ) : (
-                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                  <ChevronUp className="h-4 w-4" />
                 )}
               </button>
             </div>
-          </div>
-          
-          {!openSectionCollapsed && (
-            <div className="bg-[#2a343d] p-6 rounded-md mb-8">
-              {isLoading ? (
-                <div className="flex justify-center items-center h-40">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-white text-lg mb-4" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                    {error}
-                  </p>
-                  <a
-                    href="/"
-                    className="inline-flex items-center justify-center w-full md:w-auto px-6 py-3 text-base font-medium text-white bg-[#55c0c0] hover:bg-[#47a3a3] border-0 rounded-md h-12"
-                    style={{ fontFamily: '"Source Sans Pro", sans-serif' }}
-                  >
-                    Go to Login
-                  </a>
-                </div>
-              ) : (
+            
+            {!openSectionCollapsed && (
+              <div className="mt-4">
                 <ClaimsDashboard claims={openClaims} />
-              )}
-            </div>
-          )}
-          
+              </div>
+            )}
+          </div>
+
           {/* Closed Claims Section */}
           <div className="mb-4">
             <div className="flex items-center justify-between">
@@ -399,48 +338,29 @@ export default function DashboardPage() {
                   {closedClaims.length}
                 </span>
               </div>
-              <button 
-                onClick={toggleClosedCollapse} 
-                className="p-1 rounded-full hover:bg-gray-200 transition-colors"
-                aria-label={closedSectionCollapsed ? "Expand section" : "Collapse section"}
+              <button
+                onClick={toggleClosedCollapse}
+                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 transition-colors"
               >
+                <span className="text-sm" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                  {closedSectionCollapsed ? 'Show' : 'Hide'}
+                </span>
                 {closedSectionCollapsed ? (
-                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                  <ChevronDown className="h-4 w-4" />
                 ) : (
-                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                  <ChevronUp className="h-4 w-4" />
                 )}
               </button>
             </div>
-          </div>
-          
-          {!closedSectionCollapsed && (
-            <div className="bg-[#2a343d] p-6 rounded-md mb-16">
-              {isLoading ? (
-                <div className="flex justify-center items-center h-40">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-white text-lg mb-4" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                    {error}
-                  </p>
-                  <a
-                    href="/"
-                    className="inline-flex items-center justify-center w-full md:w-auto px-6 py-3 text-base font-medium text-white bg-[#55c0c0] hover:bg-[#47a3a3] border-0 rounded-md h-12"
-                    style={{ fontFamily: '"Source Sans Pro", sans-serif' }}
-                  >
-                    Go to Login
-                  </a>
-                </div>
-              ) : (
+            
+            {!closedSectionCollapsed && (
+              <div className="mt-4">
                 <ClaimsDashboard claims={closedClaims} />
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <div className="pb-16"></div>
     </main>
   )
 }
-

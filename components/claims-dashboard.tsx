@@ -7,13 +7,11 @@ interface Claim {
   id: string
   provider: string
   startDate: string
-  currentStage: string
+  stage: string
+  sub_status: string
   stageStartDate: string
-  expectedResolution: string
   potentialAmount: number
-  status?: 'open' | 'closed'
-  completedDate?: string
-  settlementAmount?: number
+  expectedResolutionDate: string
 }
 
 interface ClaimsDashboardProps {
@@ -61,89 +59,53 @@ export function ClaimsDashboard({ claims }: ClaimsDashboardProps) {
                       </p>
                     </div>
                     
-                    {claim.status === 'open' ? (
-                      <div>
-                        <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          Current Stage
-                        </p>
-                        <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          {claim.currentStage}
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          Final Stage
-                        </p>
-                        <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          Completed - Settled
-                        </p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Current Stage
+                      </p>
+                      <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        {claim.stage}
+                      </p>
+                    </div>
                     
-                    {claim.status === 'open' ? (
-                      <div>
-                        <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          Stage Started
-                        </p>
-                        <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          {claim.stageStartDate}
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          Completed Date
-                        </p>
-                        <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                          {claim.completedDate}
-                        </p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Sub Status
+                      </p>
+                      <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        {claim.sub_status || 'N/A'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Stage Started
+                      </p>
+                      <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        {claim.stageStartDate || 'N/A'}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    {claim.status === 'open' ? (
-                      <>
-                        <div>
-                          <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            Expected Resolution
-                          </p>
-                          <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            {claim.expectedResolution}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            Expected Amount
-                          </p>
-                          <p className="font-medium text-[#ffeb00]" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            £{claim.potentialAmount.toLocaleString()}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            Resolution Date
-                          </p>
-                          <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            {claim.completedDate}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            Final Amount
-                          </p>
-                          <p className="font-medium text-[#55c0c0]" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                            £{claim.settlementAmount?.toLocaleString() || 0}
-                          </p>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Expected Resolution
+                      </p>
+                      <p className="font-medium text-white" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        {claim.expectedResolutionDate || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        Potential Amount
+                      </p>
+                      <p className="font-medium text-[#ffeb00]" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+                        £{claim.potentialAmount.toLocaleString()}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -154,4 +116,3 @@ export function ClaimsDashboard({ claims }: ClaimsDashboardProps) {
     </div>
   )
 }
-
