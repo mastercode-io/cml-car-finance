@@ -58,7 +58,15 @@ exports.handler = async function(event, context) {
       const { status, data } = error.response;
       console.error('Error response from Zoho API:', status, data);
 
-      // Handle specific error cases based on Zoho's response
+      // Direct handling of 404 response from Zoho API
+      if (status === 404 || (typeof data === 'string' && data === 'Client not found')) {
+        return {
+          statusCode: 404,
+          body: JSON.stringify({ message: 'Client with these details was not found.' })
+        };
+      }
+
+      // Handle specific error cases based on Zoho's response structure
       if (data && data.details && data.details.output) {
         const output = data.details.output;
         

@@ -51,6 +51,7 @@ function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile")
   const [generalError, setGeneralError] = useState<string | null>(null)
+  const [multipleClients, setMultipleClients] = useState<Array<{Full_Name?: string, id?: string}>>([])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -122,17 +123,21 @@ function AdminLoginContent() {
         switch (response.status) {
           case 404:
             setGeneralError("Client with these details was not found.")
+            setMultipleClients([])
             break
           case 409:
             setGeneralError("Multiple clients found.")
-            // If there are records, you could display them here
+            // If there are records, display them
             if (data.records && data.records.length > 0) {
               console.log('Multiple clients found:', data.records)
-              // You could add UI to display these records if needed
+              setMultipleClients(data.records)
+            } else {
+              setMultipleClients([])
             }
             break
           default:
             setGeneralError("Internal server error. Please try again later.")
+            setMultipleClients([])
             break
         }
       }
@@ -324,6 +329,20 @@ function AdminLoginContent() {
                 {generalError && (
                   <div className="mt-4">
                     <p className="text-red-400 text-sm">{generalError}</p>
+                    
+                    {multipleClients.length > 0 && (
+                      <div className="mt-2 bg-gray-700 p-3 rounded-md">
+                        <p className="text-white text-xs mb-2">Please contact support with one of the following IDs:</p>
+                        <ul className="text-xs space-y-1">
+                          {multipleClients.map((client, index) => (
+                            <li key={index} className="text-gray-200 flex justify-between">
+                              <span>{client.Full_Name || 'Unknown'}</span>
+                              <span className="text-gray-400">ID: {client.id || 'N/A'}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
