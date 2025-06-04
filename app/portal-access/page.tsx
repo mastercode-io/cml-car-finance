@@ -76,7 +76,7 @@ export default function PortalAccessPage() {
     setError(null)
     
     try {
-      const response = await fetch("/.netlify/functions/portal-access-request", {
+      const response = await fetch("/.netlify/functions/portal-signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
