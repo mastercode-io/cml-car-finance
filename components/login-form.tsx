@@ -43,6 +43,8 @@ export function LoginForm() {
   const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile")
   const [otpError, setOtpError] = useState<{ status: string } | null>(null)
   const [resendingOtp, setResendingOtp] = useState(false)
+  const [generalError, setGeneralError] = useState<string | null>(null)
+  const [showPortalAccessButton, setShowPortalAccessButton] = useState(false)
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -60,6 +62,35 @@ export function LoginForm() {
       otp: "",
     },
   })
+
+  const clearErrors = () => {
+    setOtpError(null);
+    setGeneralError(null);
+    setShowPortalAccessButton(false);
+    form.clearErrors();
+  };
+
+  // Function to handle specific API error responses
+  const handleApiError = async (response: Response, data: any, identifier: string) => {
+    const statusCode = response.status;
+    
+    switch (statusCode) {
+      case 400:
+      case 500:
+        setGeneralError("Something went wrong. Please try again in a few moments.");
+        break;
+        
+      case 404:
+        // Show portal access invitation for 404 errors
+        setGeneralError("We couldn't find an existing portal account with these details.");
+        setShowPortalAccessButton(true);
+        break;
+        
+      default:
+        setGeneralError("Something went wrong. Please try again in a few moments.");
+        break;
+    }
+  };
   
   // Function to resend OTP
   async function resendOtp() {
@@ -112,8 +143,8 @@ export function LoginForm() {
     console.log('Current step:', step);
     console.log('Login method:', loginMethod);
     
-    // Clear any previous OTP errors
-    setOtpError(null);
+    // Clear any previous errors
+    clearErrors();
     
     if (step === "credentials") {
       setIsLoading(true)
@@ -142,10 +173,7 @@ export function LoginForm() {
             form.clearErrors();
           } else {
             // Handle API error
-            form.setError("email", {
-              type: "manual",
-              message: data.error || "Failed to send verification code. Please try again."
-            });
+            handleApiError(response, data, values.email);
           }
         } else if (loginMethod === "mobile" && values.mobile) {
           // Call the Netlify function to send OTP to mobile
@@ -168,10 +196,7 @@ export function LoginForm() {
             form.clearErrors();
           } else {
             // Handle API error
-            form.setError("mobile", {
-              type: "manual",
-              message: data.error || "Failed to send verification code. Please try again."
-            });
+            handleApiError(response, data, values.mobile);
           }
         } else {
           // Handle validation error
@@ -183,10 +208,7 @@ export function LoginForm() {
         }
       } catch (error) {
         console.error('Error sending OTP:', error);
-        form.setError(loginMethod === "email" ? "email" : "mobile", {
-          type: "manual",
-          message: "An unexpected error occurred. Please try again."
-        });
+        setGeneralError("Something went wrong. Please try again in a few moments.");
       } finally {
         setIsLoading(false);
       }
@@ -290,7 +312,10 @@ export function LoginForm() {
                       name="login-method"
                       value="mobile"
                       checked={loginMethod === "mobile"}
-                      onChange={() => setLoginMethod("mobile")}
+                      onChange={() => {
+                        setLoginMethod("mobile");
+                        clearErrors();
+                      }}
                       className="mr-2 h-4 w-4 accent-[#55c0c0]"
                     />
                     <label htmlFor="mobile-option" className="text-white cursor-pointer">
@@ -304,7 +329,10 @@ export function LoginForm() {
                       name="login-method"
                       value="email"
                       checked={loginMethod === "email"}
-                      onChange={() => setLoginMethod("email")}
+                      onChange={() => {
+                        setLoginMethod("email");
+                        clearErrors();
+                      }}
                       className="mr-2 h-4 w-4 accent-[#55c0c0]"
                     />
                     <label htmlFor="email-option" className="text-white cursor-pointer">
@@ -426,6 +454,33 @@ export function LoginForm() {
             </Button>
           </div>
         </Form>
+        {generalError && (
+          <div className="mt-4">
+            <p className="text-red-400 text-sm">{generalError}</p>
+            {showPortalAccessButton && (
+              <div className="mt-3">
+                <p className="text-gray-300 text-sm mb-2">If you're new here, you can request portal access by submitting your details.</p>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    // Store the login input in localStorage for the portal access form
+                    const identifier = loginMethod === "email" ? form.getValues().email : form.getValues().mobile;
+                    if (loginMethod === "email") {
+                      localStorage.setItem('portalRequestEmail', identifier || '');
+                    } else {
+                      localStorage.setItem('portalRequestMobile', identifier || '');
+                    }
+                    // Navigate to the portal access request page
+                    window.location.href = "/portal-access";
+                  }}
+                  className="w-full bg-[#55c0c0] text-white hover:bg-[#47a3a3] border-0 rounded-md h-10 text-sm"
+                >
+                  Set up my claims portal
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
       {step === "otp" && (
         <CardFooter className="flex flex-col space-y-4">
@@ -449,7 +504,10 @@ export function LoginForm() {
           )}
           <Button
             variant="link"
-            onClick={() => setStep("credentials")}
+            onClick={() => {
+              setStep("credentials");
+              clearErrors();
+            }}
             className="text-[#55c0c0] hover:text-[#47a3a3]"
             style={{ fontFamily: "Montserrat, sans-serif" }}
           >

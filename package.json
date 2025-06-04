@@ -7,7 +7,8 @@
     "netlify-dev": "netlify dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "rm -rf .next && echo '✅ Cleared old .next build after install'"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

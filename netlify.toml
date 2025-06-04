@@ -11,10 +11,9 @@
   package = "@netlify/plugin-functions-install-core"
 
 [dev]
-  framework = "next"
-  command = "next dev"
+  command = ""
   port = 8888
   targetPort = 3000
-  autoLaunch = true
+  autoLaunch = false
 
 # Netlify automatically handles function proxying
