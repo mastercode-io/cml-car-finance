@@ -61,6 +61,7 @@ function AdminLoginContent() {
       mobile: "",
       loginMethod: "mobile",
     },
+    mode: "onChange"
   })
 
   const { clearErrors } = form
@@ -78,14 +79,63 @@ function AdminLoginContent() {
     setGeneralError(null)
     
     try {
-      // Here you would implement the admin login logic
       console.log('Admin login submitted with values:', values)
       
-      // Simulating an API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Prepare the payload for the admin login API
+      const payload = {
+        login: values.username,
+        password: values.password,
+        email: loginMethod === "email" ? values.email : undefined,
+        mobile: loginMethod === "mobile" ? values.mobile : undefined
+      }
       
-      // For now, just show an error message
-      setGeneralError("Admin login functionality is not yet implemented.")
+      // Call the Netlify function for admin login
+      const response = await fetch('/.netlify/functions/admin-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      
+      const data = await response.json()
+      console.log('Admin login API response:', response.status, data)
+      
+      if (response.ok) {
+        // Login successful, store user data and redirect to dashboard
+        console.log('Admin login successful')
+        
+        // Start user session with the module and session token
+        if (data.module && data.session_token) {
+          // Import the session utility
+          const { startUserSession } = await import('@/utils/session')
+          startUserSession(data.session_token, data.module)
+          console.log('Started admin session:', { module: data.module, token: data.session_token })
+        } else {
+          console.error('Missing module or session_token in admin login response:', data)
+        }
+        
+        // Redirect to dashboard
+        window.location.href = "/dashboard"
+      } else {
+        // Handle different error statuses
+        switch (response.status) {
+          case 404:
+            setGeneralError("Client with these details was not found.")
+            break
+          case 409:
+            setGeneralError("Multiple clients found.")
+            // If there are records, you could display them here
+            if (data.records && data.records.length > 0) {
+              console.log('Multiple clients found:', data.records)
+              // You could add UI to display these records if needed
+            }
+            break
+          default:
+            setGeneralError("Internal server error. Please try again later.")
+            break
+        }
+      }
     } catch (error) {
       console.error('Error during admin login:', error)
       setGeneralError("An error occurred during login. Please try again.")
@@ -108,7 +158,7 @@ function AdminLoginContent() {
         </CardHeader>
         <CardContent className="p-6 pt-2">
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="space-y-6">
                     <FormField
                       control={form.control}
                       name="username"
@@ -249,10 +299,16 @@ function AdminLoginContent() {
                     </div>
 
                     <Button
-                      type="submit"
+                      type="button"
                       className="w-full bg-[#c73e48] text-white hover:bg-[#b03540] border-0 rounded-md h-12"
                       style={{ fontFamily: "Montserrat, sans-serif" }}
                       disabled={isLoading}
+                      onClick={() => {
+                        console.log('Button clicked directly');
+                        const values = form.getValues();
+                        console.log('Current form values:', values);
+                        onSubmit(values);
+                      }}
                     >
                       {isLoading ? (
                         <>
@@ -263,7 +319,7 @@ function AdminLoginContent() {
                         "Log In"
                       )}
                     </Button>
-                  </form>
+                  </div>
                 </Form>
                 {generalError && (
                   <div className="mt-4">
