@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -47,7 +47,7 @@ const formSchema = z.object({
   }
 );
 
-export default function AdminLoginPage() {
+function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile")
   const [generalError, setGeneralError] = useState<string | null>(null)
@@ -95,22 +95,18 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="bg-white min-h-screen flex flex-col">
-      <LogoHeader />
-      <div className="flex-1 flex items-center justify-center py-8 mb-[10vh]">
-        <div className="w-full px-4 md:px-6">
-          <div className="mx-auto max-w-md">
-            <Card className="border-0 bg-[#2a343d] shadow-sm rounded-md">
-              <CardHeader className="text-white text-center pb-4 pt-6 px-4">
-                <CardTitle className="text-2xl text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
-                  Admin Login
-                </CardTitle>
-                <div className="mt-2 mx-auto w-40 h-1 bg-[#55c0c0]"></div>
-                <CardDescription className="mt-4 text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
-                  Enter your admin credentials to access the system
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 pt-2">
+    <div className="mx-auto max-w-md">
+      <Card className="border-0 bg-[#2a343d] shadow-sm rounded-md">
+        <CardHeader className="text-white text-center pb-4 pt-6 px-4">
+          <CardTitle className="text-2xl text-white" style={{ fontFamily: "Montserrat, sans-serif" }}>
+            Admin Login
+          </CardTitle>
+          <div className="mt-2 mx-auto w-40 h-1 bg-[#55c0c0]"></div>
+          <CardDescription className="mt-4 text-gray-300" style={{ fontFamily: '"Source Sans Pro", sans-serif' }}>
+            Enter your admin credentials to access the system
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 pt-2">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <FormField
@@ -277,6 +273,19 @@ export default function AdminLoginPage() {
               </CardContent>
             </Card>
           </div>
+  )
+}
+
+// Main page component with suspense boundary
+export default function AdminLoginPage() {
+  return (
+    <main className="bg-white min-h-screen flex flex-col">
+      <LogoHeader />
+      <div className="flex-1 flex items-center justify-center py-8 mb-[10vh]">
+        <div className="w-full px-4 md:px-6">
+          <Suspense fallback={<div className="mx-auto max-w-md">Loading...</div>}>
+            <AdminLoginContent />
+          </Suspense>
         </div>
       </div>
     </main>
