@@ -22,6 +22,7 @@ export function DevMenu() {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/search", label: "Credit Search" },
     { href: "/loans", label: "Loans" },
+    { href: "/admin", label: "Admin" },
   ]
 
   // Don't render anything if dev mode is off
