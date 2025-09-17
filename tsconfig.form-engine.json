@@ -1,0 +1,9 @@
+{
+  "extends": "./packages/form-engine/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "./packages/form-engine/src"
+  },
+  "include": ["packages/form-engine/src/**/*"],
+  "exclude": ["packages/form-engine/dist"]
+}

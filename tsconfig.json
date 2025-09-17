@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": true,
-    "target": "ES6",
+    "target": "ES2022",
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -19,9 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@form-engine/*": ["./packages/form-engine/src/*"],
+      "@testing/*": ["./packages/form-engine/tests/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "packages/form-engine/dist"]
 }
