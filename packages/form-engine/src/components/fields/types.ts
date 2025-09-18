@@ -7,7 +7,7 @@ export interface FieldError {
 
 export interface FieldProps<TFieldValues extends FieldValues = FieldValues> {
   name: string;
-  label: string;
+  label?: string;
   value?: unknown;
   defaultValue?: unknown;
   placeholder?: string;

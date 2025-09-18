@@ -2,41 +2,35 @@
 
 import * as React from 'react';
 
-import type { FieldProps } from './types';
-import { CheckboxField } from './CheckboxField';
-import { DateField } from './DateField';
-import { NumberField } from './NumberField';
-import { SelectField } from './SelectField';
-import { TextAreaField } from './TextAreaField';
-import { TextField } from './TextField';
+import { initializeFieldRegistry } from '../../core/field-registry';
 import type { WidgetType } from '../../types';
-
-const registry: Partial<Record<WidgetType, React.ComponentType<FieldProps>>> = {
-  Text: TextField,
-  Number: NumberField,
-  TextArea: TextAreaField,
-  Select: SelectField,
-  Checkbox: CheckboxField,
-  Date: DateField
-};
-
-export function registerFieldComponent(type: WidgetType, component: React.ComponentType<FieldProps>): void {
-  registry[type] = component;
-}
-
-export function getFieldComponent(type: WidgetType): React.ComponentType<FieldProps> {
-  const component = registry[type];
-  if (!component) {
-    throw new Error(`No field component registered for widget: ${type}`);
-  }
-  return component;
-}
+import type { FieldProps } from './types';
+import { TextField } from './TextField';
 
 export interface FieldFactoryProps extends FieldProps {
   widget: WidgetType;
 }
 
 export const FieldFactory: React.FC<FieldFactoryProps> = ({ widget, ...props }) => {
-  const Component = getFieldComponent(widget);
-  return <Component {...props} />;
+  const registry = initializeFieldRegistry();
+  const registration = registry.get(widget);
+
+  if (!registration) {
+    console.warn(`No field component registered for widget: ${widget}. Falling back to Text.`);
+    const fallback = registry.get('Text');
+
+    if (!fallback) {
+      const FallbackComponent = TextField;
+      return <FallbackComponent {...props} />;
+    }
+
+    const FallbackComponent = fallback.component;
+    const fallbackProps: FieldProps = { ...(fallback.defaultProps ?? {}), ...props };
+    return <FallbackComponent {...fallbackProps} />;
+  }
+
+  const Component = registration.component;
+  const mergedProps: FieldProps = { ...(registration.defaultProps ?? {}), ...props };
+
+  return <Component {...mergedProps} />;
 };
