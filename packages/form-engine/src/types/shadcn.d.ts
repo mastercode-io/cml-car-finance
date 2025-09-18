@@ -16,6 +16,16 @@ declare module '@/components/ui/button' {
   export const Button: React.FC<any>;
 }
 
+declare module '@/components/ui/alert' {
+  export const Alert: React.FC<any>;
+  export const AlertTitle: React.FC<any>;
+  export const AlertDescription: React.FC<any>;
+}
+
+declare module '@/components/ui/card' {
+  export const Card: React.FC<any>;
+}
+
 declare module '@/components/ui/select' {
   export const Select: React.FC<any>;
   export const SelectContent: React.FC<any>;

@@ -26,6 +26,9 @@ export interface DraftMetadata {
   saveCount: number;
   isComplete: boolean;
   isEncrypted: boolean;
+  hasConflicts?: boolean;
+  conflictFields?: string[];
+  userId?: string;
 }
 
 export interface DraftData {
@@ -40,24 +43,35 @@ export interface DraftData {
 
 const DEVICE_STORAGE_KEY = 'cml-form-device-id';
 
+export interface StoredDraft {
+  key: string;
+  draft: DraftData;
+}
+
 export class PersistenceManager {
   private store: ReturnType<typeof localforage.createInstance>;
   private config: PersistenceConfig;
   private saveQueue: Map<string, any> = new Map();
   private saveTimer: NodeJS.Timeout | null = null;
   private encryptionKey: string | null;
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(config: PersistenceConfig) {
     this.config = config;
     this.encryptionKey = config.encryptionKey || null;
     this.store = localforage.createInstance({
       name: 'FormBuilder',
-      storeName: 'drafts'
+      storeName: 'drafts',
     });
     this.initialize();
   }
 
-  async saveDraft(data: unknown, currentStep: string, completedSteps: string[], options?: SaveOptions): Promise<void> {
+  async saveDraft(
+    data: unknown,
+    currentStep: string,
+    completedSteps: string[],
+    options?: SaveOptions,
+  ): Promise<void> {
     if (!this.config.allowAutosave && !options?.manual) {
       return;
     }
@@ -72,7 +86,7 @@ export class PersistenceManager {
       data,
       currentStep,
       completedSteps,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     if (this.saveTimer) {
@@ -89,7 +103,7 @@ export class PersistenceManager {
       return null;
     }
 
-    if (draft.metadata.expiresAt && new Date(draft.metadata.expiresAt) < new Date()) {
+    if (this.isExpired(draft)) {
       await this.store.removeItem(key);
       return null;
     }
@@ -105,6 +119,10 @@ export class PersistenceManager {
       }
     }
 
+    if (this.isCompressed(draft.data)) {
+      draft.data = await this.decompress(draft.data as string);
+    }
+
     return draft;
   }
 
@@ -112,9 +130,43 @@ export class PersistenceManager {
     await this.store.removeItem(this.getDraftKey());
   }
 
+  async deleteDraftByKey(key: string): Promise<void> {
+    await this.store.removeItem(key);
+  }
+
+  async getAllDrafts(): Promise<StoredDraft[]> {
+    const drafts: StoredDraft[] = [];
+
+    await this.store.iterate((value: unknown, key: string) => {
+      const draft = value as DraftData | null;
+      if (!draft || this.isExpired(draft)) {
+        return;
+      }
+
+      drafts.push({ key, draft });
+    });
+
+    return drafts;
+  }
+
+  async flushPendingSaves(): Promise<void> {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    await this.flushQueue();
+  }
+
   private async initialize(): Promise<void> {
     await this.store.ready();
     await this.cleanExpiredDrafts();
+    this.cleanupTimer = setInterval(
+      () => {
+        void this.cleanExpiredDrafts();
+      },
+      60 * 60 * 1000,
+    );
   }
 
   private async flushQueue(): Promise<void> {
@@ -126,6 +178,7 @@ export class PersistenceManager {
         await this.persistDraft(key, payload);
       } catch (error) {
         console.error('Failed to persist draft', error);
+        this.saveQueue.set(key, payload);
       }
     }
   }
@@ -140,6 +193,10 @@ export class PersistenceManager {
     if (this.shouldEncrypt()) {
       data = CryptoJS.AES.encrypt(JSON.stringify(payload.data), this.encryptionKey!).toString();
       isEncrypted = true;
+    }
+
+    if (!isEncrypted && this.shouldCompress(payload.data)) {
+      data = await this.compress(payload.data);
     }
 
     const draft: DraftData = {
@@ -157,11 +214,13 @@ export class PersistenceManager {
         sessionId: this.getSessionId(),
         saveCount: (existing?.metadata.saveCount ?? 0) + 1,
         isComplete: false,
-        isEncrypted
-      }
+        isEncrypted,
+        userId: this.config.userId,
+      },
     };
 
     await this.store.setItem(key, draft);
+    this.emitSaveEvent(draft);
   }
 
   private shouldEncrypt(): boolean {
@@ -169,11 +228,15 @@ export class PersistenceManager {
   }
 
   private async cleanExpiredDrafts(): Promise<void> {
-    await this.store.iterate(async (value: DraftData, key: string) => {
-      if (value.metadata.expiresAt && new Date(value.metadata.expiresAt) < new Date()) {
-        await this.store.removeItem(key);
+    const keysToDelete: string[] = [];
+
+    await this.store.iterate((value: DraftData | null, key: string) => {
+      if (value && this.isExpired(value)) {
+        keysToDelete.push(key);
       }
     });
+
+    await Promise.all(keysToDelete.map((storageKey) => this.store.removeItem(storageKey)));
   }
 
   private getDraftKey(): string {
@@ -190,11 +253,131 @@ export class PersistenceManager {
     return expiry.toISOString();
   }
 
+  private isExpired(draft: DraftData): boolean {
+    if (!draft?.metadata?.expiresAt) {
+      return false;
+    }
+
+    return new Date(draft.metadata.expiresAt) < new Date();
+  }
+
+  private shouldCompress(data: unknown): boolean {
+    try {
+      const json = JSON.stringify(data ?? {});
+      const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+      const size = encoder ? encoder.encode(json).length : Buffer.from(json).length;
+      return size > 50 * 1024;
+    } catch {
+      return false;
+    }
+  }
+
+  private async compress(data: unknown): Promise<string> {
+    const json = JSON.stringify(data ?? {});
+
+    if (typeof CompressionStream !== 'undefined') {
+      const stream = new CompressionStream('gzip');
+      const writer = stream.writable.getWriter();
+      const encoder = new TextEncoder();
+      await writer.write(encoder.encode(json));
+      await writer.close();
+      const compressed = await new Response(stream.readable).arrayBuffer();
+      const bytes = new Uint8Array(compressed);
+      return `gz:${this.encodeBase64FromBytes(bytes)}`;
+    }
+
+    return `b64:${this.encodeBase64FromString(json)}`;
+  }
+
+  private async decompress(serialized: string): Promise<unknown> {
+    if (serialized.startsWith('gz:')) {
+      const payload = this.decodeBase64ToBytes(serialized.slice(3));
+      if (typeof DecompressionStream !== 'undefined') {
+        const stream = new DecompressionStream('gzip');
+        const writer = stream.writable.getWriter();
+        await writer.write(payload);
+        await writer.close();
+        const text = await new Response(stream.readable).text();
+        return JSON.parse(text);
+      }
+    }
+
+    const base64 = serialized.startsWith('b64:') ? serialized.slice(4) : serialized;
+    const text = this.decodeBase64ToString(base64);
+    return JSON.parse(text);
+  }
+
+  private isCompressed(data: unknown): data is string {
+    return typeof data === 'string' && (data.startsWith('gz:') || data.startsWith('b64:'));
+  }
+
+  private encodeBase64FromBytes(bytes: Uint8Array): string {
+    if (typeof btoa === 'function') {
+      let binary = '';
+      bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+      });
+      return btoa(binary);
+    }
+
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(bytes).toString('base64');
+    }
+
+    return Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  private encodeBase64FromString(value: string): string {
+    if (typeof btoa === 'function') {
+      return btoa(value);
+    }
+
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(value, 'utf-8').toString('base64');
+    }
+
+    return value;
+  }
+
+  private decodeBase64ToBytes(value: string): Uint8Array {
+    if (typeof atob === 'function') {
+      const binary = atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(value, 'base64'));
+    }
+
+    return new Uint8Array();
+  }
+
+  private decodeBase64ToString(value: string): string {
+    if (typeof atob === 'function') {
+      return atob(value);
+    }
+
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(value, 'base64').toString('utf-8');
+    }
+
+    return value;
+  }
+
   private async getDeviceId(): Promise<string> {
     const globalStore = localforage.createInstance({ name: 'FormBuilderMeta', storeName: 'meta' });
     const existing = (await globalStore.getItem(DEVICE_STORAGE_KEY)) as string | null;
     if (existing) return existing;
-    const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUUID();
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : randomUUID();
     await globalStore.setItem(DEVICE_STORAGE_KEY, id);
     return id;
   }
@@ -204,9 +387,28 @@ export class PersistenceManager {
       return 'server';
     }
     if (!window.sessionStorage.getItem('cml-form-session')) {
-      const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUUID();
+      const id =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : randomUUID();
       window.sessionStorage.setItem('cml-form-session', id);
     }
     return window.sessionStorage.getItem('cml-form-session')!;
+  }
+
+  private emitSaveEvent(draft: DraftData): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const event = new CustomEvent('formDraftSaved', {
+      detail: {
+        formId: draft.formId,
+        saveCount: draft.metadata.saveCount,
+        timestamp: draft.metadata.updatedAt,
+      },
+    });
+
+    window.dispatchEvent(event);
   }
 }

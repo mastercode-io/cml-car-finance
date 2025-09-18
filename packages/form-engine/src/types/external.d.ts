@@ -46,3 +46,11 @@ declare module 'jsonpath' {
   };
   export default JSONPath;
 }
+
+declare module 'xstate' {
+  export type AnyStateMachine = unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export function createMachine(...args: any[]): AnyStateMachine;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export function assign<TContext = any, TEvent = any>(assignment: any): any;
+}
