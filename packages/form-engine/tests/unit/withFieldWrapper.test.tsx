@@ -42,7 +42,7 @@ describe('withFieldWrapper', () => {
     const wrapper = document.querySelector('[data-field-wrapper]');
     expect(wrapper).toBeInTheDocument();
 
-    const input = screen.getByLabelText('Example label');
+    const input = screen.getByRole('textbox', { name: /Example label/i });
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAttribute('aria-required', 'true');
 

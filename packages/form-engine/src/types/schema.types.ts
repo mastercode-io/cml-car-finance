@@ -53,7 +53,3 @@ export interface SchemaVersionMeta {
   deprecationDate?: string;
   migrateTo?: string;
 }
-
-export interface ValidationOptions {
-  timeout?: number;
-}
