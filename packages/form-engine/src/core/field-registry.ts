@@ -2,7 +2,6 @@ import type React from 'react';
 
 import { CheckboxField } from '../components/fields/CheckboxField';
 import { DateField } from '../components/fields/DateField';
-import { registerFieldComponent } from '../components/fields/FieldFactory';
 import type { FieldProps } from '../components/fields/types';
 import { NumberField } from '../components/fields/NumberField';
 import { SelectField } from '../components/fields/SelectField';
@@ -30,13 +29,21 @@ export class FieldRegistry {
     return FieldRegistry.instance;
   }
 
+  static reset(): void {
+    if (!FieldRegistry.instance) {
+      return;
+    }
+
+    FieldRegistry.instance.fields.clear();
+    FieldRegistry.instance = null;
+  }
+
   register(type: WidgetType, field: FieldComponent): void {
     if (this.fields.has(type)) {
       console.warn(`Field type ${type} is being overridden`);
     }
 
     this.fields.set(type, field);
-    registerFieldComponent(type, field.component);
   }
 
   get(type: WidgetType): FieldComponent | undefined {
