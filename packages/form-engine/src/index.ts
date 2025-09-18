@@ -1,12 +1,17 @@
-/**
- * Entry point for the form engine package.
- * This will be expanded in later steps of the implementation plan.
- */
-export const initializeFormEngine = () => {
-  return {
-    version: '0.1.0',
-    status: 'initializing',
-  } as const;
-};
-
-export type FormEngineBootstrap = ReturnType<typeof initializeFormEngine>;
+export * from './types';
+export * from './core/field-registry';
+export * from './core/schema-composer';
+export * from './core/schema-versioning';
+export * from './components/fields/FieldFactory';
+export * from './renderer/FormRenderer';
+export * from './rules/rule-evaluator';
+export * from './rules/transition-engine';
+export * from './rules/visibility-controller';
+export * from './validation/ajv-setup';
+export * from './validation/rhf-resolver';
+export * from './utils/schema-validator';
+export * from './persistence/PersistenceManager';
+export * from './computed/ComputedFieldEngine';
+export * from './datasources/DataSourceManager';
+export * from './analytics/FormAnalytics';
+export * from './performance/PerformanceBudget';
