@@ -20,6 +20,7 @@ export interface FormMetadata {
   tags?: string[];
   owner?: string;
   lastModified?: string;
+  requiresAudit?: boolean;
 }
 
 export interface FormStep {
