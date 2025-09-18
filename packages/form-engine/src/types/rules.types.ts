@@ -41,25 +41,38 @@ export interface StepTransition {
   guard?: string;
 }
 
+export interface TransitionHistoryEntry {
+  from: string;
+  to: string;
+  type: 'default' | 'conditional';
+  timestamp: number;
+}
+
+export type TransitionGuard = (
+  data: any,
+  context?: TransitionContext,
+) => boolean | Promise<boolean>;
+
+export interface TransitionContext extends RuleContext {
+  guards?: Record<string, TransitionGuard>;
+  [key: string]: unknown;
+}
+
+export interface ComplexityAnalysis {
+  uniqueConditions: number;
+  maxNesting: number;
+  hasAsyncGuards: boolean;
+  hasParallelStates: boolean;
+}
+
 export const isLogicalRule = (rule: Rule): rule is LogicalRule =>
   rule.op === 'and' || rule.op === 'or' || rule.op === 'not';
 
 export const isComparisonRule = (rule: Rule): rule is ComparisonRule =>
-  (
-    [
-      'eq',
-      'neq',
-      'gt',
-      'lt',
-      'gte',
-      'lte',
-      'in',
-      'regex'
-    ] as Array<ComparisonRule['op']>
-  ).includes(rule.op as ComparisonRule['op']);
+  (['eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'in', 'regex'] as Array<ComparisonRule['op']>).includes(
+    rule.op as ComparisonRule['op'],
+  );
 
-export const isCustomRule = (rule: Rule): rule is CustomRule =>
-  rule.op === 'custom';
+export const isCustomRule = (rule: Rule): rule is CustomRule => rule.op === 'custom';
 
-export const isAlwaysRule = (rule: Rule): rule is AlwaysRule =>
-  rule.op === 'always';
+export const isAlwaysRule = (rule: Rule): rule is AlwaysRule => rule.op === 'always';
