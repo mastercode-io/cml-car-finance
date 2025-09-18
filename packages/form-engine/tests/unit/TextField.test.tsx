@@ -38,7 +38,7 @@ describe('TextField', () => {
       />
     );
 
-    const input = screen.getByLabelText('Email address');
+    const input = screen.getByRole('textbox', { name: /Email address/i });
     const description = screen.getByText('We will use this to contact you');
     const help = screen.getByText('Use your work email');
     const error = screen.getByRole('alert');

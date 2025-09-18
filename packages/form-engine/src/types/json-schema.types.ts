@@ -17,6 +17,7 @@ export type JSONSchemaType =
 export interface JSONSchema {
   $id?: string;
   $ref?: string;
+  $async?: boolean;
   type?: JSONSchemaType | JSONSchemaType[];
   title?: string;
   description?: string;
@@ -88,3 +89,19 @@ export interface ValidationResult {
 }
 
 export type CompiledSchema = (data: unknown) => boolean | Promise<boolean>;
+
+export interface ValidationOptions {
+  timeout?: number;
+}
+
+export interface StepValidationOptions extends ValidationOptions {
+  fullData?: boolean;
+  blockOnError?: boolean;
+  useWorker?: boolean;
+}
+
+export interface StepValidationResult extends ValidationResult {
+  stepId: string;
+  canProceed: boolean;
+  warnings: ValidationError[];
+}

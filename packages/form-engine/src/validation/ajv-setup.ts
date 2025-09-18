@@ -3,12 +3,7 @@ import addFormats from 'ajv-formats';
 import ajvErrors from 'ajv-errors';
 import addKeywords from 'ajv-keywords';
 
-import type {
-  JSONSchema,
-  ValidationError,
-  ValidationOptions,
-  ValidationResult
-} from '../types';
+import type { JSONSchema, ValidationError, ValidationOptions, ValidationResult } from '../types';
 import { evaluateRule } from '../rules/rule-evaluator';
 
 export interface PerformanceMetrics {
@@ -35,7 +30,7 @@ export class ValidationEngine {
       useDefaults: true,
       removeAdditional: 'failing',
       $data: true,
-      messages: true
+      messages: true,
     });
 
     addFormats(this.ajv);
@@ -46,7 +41,8 @@ export class ValidationEngine {
       'exclusiveRange',
       'uniqueItemProperties',
       'regexp',
-      'transform'
+      'dynamicDefaults',
+      'transform',
     ]);
     ajvErrors(this.ajv);
     this.registerCustomFormats();
@@ -56,17 +52,17 @@ export class ValidationEngine {
   private registerCustomFormats(): void {
     this.ajv.addFormat('uk-postcode', {
       type: 'string',
-      validate: (data: string) => /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(data.trim())
+      validate: (data: string) => /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(data.trim()),
     });
 
     this.ajv.addFormat('us-zip', {
       type: 'string',
-      validate: (data: string) => /^\d{5}(-\d{4})?$/.test(data)
+      validate: (data: string) => /^\d{5}(-\d{4})?$/.test(data),
     });
 
     this.ajv.addFormat('phone', {
       type: 'string',
-      validate: (data: string) => /^\+[1-9]\d{1,14}$/.test(data)
+      validate: (data: string) => /^\+[1-9]\d{1,14}$/.test(data),
     });
 
     this.ajv.addFormat('iban', {
@@ -75,19 +71,19 @@ export class ValidationEngine {
         const iban = data.replace(/\s/g, '').toUpperCase();
         if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban)) return false;
         const rearranged = iban.slice(4) + iban.slice(0, 4);
-        const numeric = rearranged.replace(/[A-Z]/g, char => String(char.charCodeAt(0) - 55));
+        const numeric = rearranged.replace(/[A-Z]/g, (char) => String(char.charCodeAt(0) - 55));
         try {
           return BigInt(numeric) % 97n === 1n;
         } catch (error) {
           console.warn('IBAN validation failed', error);
           return false;
         }
-      }
+      },
     });
 
     this.ajv.addFormat('currency', {
       type: 'number',
-      validate: (data: number) => Number.isFinite(data) && data >= 0
+      validate: (data: number) => Number.isFinite(data) && data >= 0,
     });
 
     this.ajv.addFormat('credit-card', {
@@ -109,7 +105,7 @@ export class ValidationEngine {
         }
 
         return sum % 10 === 0;
-      }
+      },
     });
   }
 
@@ -136,8 +132,8 @@ export class ValidationEngine {
                   schemaPath: '#/requiredWhen',
                   keyword: 'requiredWhen',
                   params: { missingProperty: field },
-                  message: `${field} is required`
-                }
+                  message: `${field} is required`,
+                },
               ];
               return false;
             }
@@ -145,7 +141,7 @@ export class ValidationEngine {
           return true;
         };
         return validator;
-      }
+      },
     });
 
     this.ajv.addKeyword({
@@ -175,8 +171,63 @@ export class ValidationEngine {
           default:
             return true;
         }
-      }
+      },
     });
+
+    const asyncValidator = (async (schema: unknown, data: unknown) => {
+      if (!schema || typeof schema !== 'object') return true;
+      const {
+        endpoint,
+        method = 'POST',
+        timeout = 2000,
+      } = schema as {
+        endpoint?: string;
+        method?: string;
+        timeout?: number;
+      };
+      if (!endpoint) return true;
+
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeout);
+        const response = await fetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: data }),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (!response.ok) {
+          (asyncValidator as any).errors = [
+            {
+              instancePath: '',
+              schemaPath: '#/asyncValidate',
+              keyword: 'asyncValidate',
+              message: `Async validation failed with status ${response.status}`,
+            },
+          ];
+          return false;
+        }
+
+        const result = await response.json();
+        if (result?.valid === false) {
+          (asyncValidator as any).errors = [
+            {
+              instancePath: '',
+              schemaPath: '#/asyncValidate',
+              keyword: 'asyncValidate',
+              message: result.message || 'Async validation failed',
+            },
+          ];
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Async validation error', error);
+        return true;
+      }
+    }) as any;
 
     this.ajv.addKeyword({
       keyword: 'asyncValidate',
@@ -184,59 +235,7 @@ export class ValidationEngine {
       type: 'string',
       schemaType: 'object',
       errors: true,
-      compile: (schema: unknown) => {
-        const validator = async (data: unknown) => {
-          if (!schema || typeof schema !== 'object') return true;
-          const { endpoint, method = 'POST', timeout = 2000 } = schema as {
-            endpoint?: string;
-            method?: string;
-            timeout?: number;
-          };
-          if (!endpoint) return true;
-
-          try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), timeout);
-            const response = await fetch(endpoint, {
-              method,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ value: data }),
-              signal: controller.signal
-            });
-            clearTimeout(timer);
-
-            if (!response.ok) {
-              (validator as any).errors = [
-                {
-                  instancePath: '',
-                  schemaPath: '#/asyncValidate',
-                  keyword: 'asyncValidate',
-                  message: `Async validation failed with status ${response.status}`
-                }
-              ];
-              return false;
-            }
-
-            const result = await response.json();
-            if (result?.valid === false) {
-              (validator as any).errors = [
-                {
-                  instancePath: '',
-                  schemaPath: '#/asyncValidate',
-                  keyword: 'asyncValidate',
-                  message: result.message || 'Async validation failed'
-                }
-              ];
-              return false;
-            }
-            return true;
-          } catch (error) {
-            console.error('Async validation error', error);
-            return true;
-          }
-        };
-        return validator;
-      }
+      validate: asyncValidator,
     });
   }
 
@@ -246,12 +245,18 @@ export class ValidationEngine {
     if (existing) {
       return existing;
     }
-    const compiled = this.ajv.compile(schema);
+    const needsAsync = JSON.stringify(schema).includes('"asyncValidate"');
+    const targetSchema = needsAsync && !schema.$async ? { ...schema, $async: true } : schema;
+    const compiled = this.ajv.compile(targetSchema);
     this.compiledSchemas.set(schemaId, compiled);
     return compiled;
   }
 
-  async validate(schema: JSONSchema, data: unknown, options?: ValidationOptions): Promise<ValidationResult> {
+  async validate(
+    schema: JSONSchema,
+    data: unknown,
+    options?: ValidationOptions,
+  ): Promise<ValidationResult> {
     const start = now();
     try {
       const validate = this.compile(schema);
@@ -264,7 +269,7 @@ export class ValidationEngine {
       return {
         valid: Boolean(valid),
         errors: validate.errors ? this.formatErrors(validate.errors) : [],
-        duration
+        duration,
       };
     } catch (error) {
       return {
@@ -272,10 +277,10 @@ export class ValidationEngine {
         errors: [
           {
             path: '',
-            message: error instanceof Error ? error.message : 'Validation failed'
-          }
+            message: error instanceof Error ? error.message : 'Validation failed',
+          },
         ],
-        duration: now() - start
+        duration: now() - start,
       };
     }
   }
@@ -286,12 +291,13 @@ export class ValidationEngine {
       return { p50: 0, p95: 0, p99: 0, avg: 0 };
     }
     const sorted = [...metrics].sort((a, b) => a - b);
-    const percentile = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
+    const percentile = (p: number) =>
+      sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
     return {
       p50: percentile(0.5),
       p95: percentile(0.95),
       p99: percentile(0.99),
-      avg: metrics.reduce((acc, value) => acc + value, 0) / metrics.length
+      avg: metrics.reduce((acc, value) => acc + value, 0) / metrics.length,
     };
   }
 
@@ -305,7 +311,7 @@ export class ValidationEngine {
   }
 
   private formatErrors(errors: ErrorObject[]): ValidationError[] {
-    return errors.map(error => ({
+    return errors.map((error) => ({
       path: error.instancePath,
       property:
         typeof error.params === 'object' && error.params && 'missingProperty' in error.params
@@ -313,21 +319,21 @@ export class ValidationEngine {
           : undefined,
       message: this.getErrorMessage(error),
       keyword: error.keyword,
-      params: error.params as Record<string, unknown>
+      params: error.params as Record<string, unknown>,
     }));
   }
 
   private getErrorMessage(error: ErrorObject): string {
     const customMessages: Record<string, (error: ErrorObject) => string> = {
-      required: e => `${(e.params as any).missingProperty} is required`,
-      minLength: e => `Must be at least ${(e.params as any).limit} characters`,
-      maxLength: e => `Must be at most ${(e.params as any).limit} characters`,
-      minimum: e => `Must be at least ${(e.params as any).limit}`,
-      maximum: e => `Must be at most ${(e.params as any).limit}`,
+      required: (e) => `${(e.params as any).missingProperty} is required`,
+      minLength: (e) => `Must be at least ${(e.params as any).limit} characters`,
+      maxLength: (e) => `Must be at most ${(e.params as any).limit} characters`,
+      minimum: (e) => `Must be at least ${(e.params as any).limit}`,
+      maximum: (e) => `Must be at most ${(e.params as any).limit}`,
       pattern: () => 'Invalid format',
-      format: e => `Invalid ${(e.params as any).format} format`,
-      enum: e => `Must be one of: ${(e.params as any).allowedValues.join(', ')}`,
-      type: e => `Must be a ${(e.params as any).type}`
+      format: (e) => `Invalid ${(e.params as any).format} format`,
+      enum: (e) => `Must be one of: ${(e.params as any).allowedValues.join(', ')}`,
+      type: (e) => `Must be a ${(e.params as any).type}`,
     };
     const generator = customMessages[error.keyword];
     return generator ? generator(error) : error.message || 'Validation failed';

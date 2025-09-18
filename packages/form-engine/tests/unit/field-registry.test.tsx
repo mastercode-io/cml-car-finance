@@ -30,21 +30,26 @@ describe('FieldRegistry', () => {
   it('merges default props when rendering through the FieldFactory', () => {
     const registry = FieldRegistry.getInstance();
 
-    const CustomComponent: React.FC<FieldProps> = ({ label }) => (
-      <div data-testid="custom-field">{label}</div>
+    const CustomComponent: React.FC<FieldProps> = ({ placeholder }) => (
+      <input data-testid="custom-field" placeholder={placeholder} />
     );
 
     registry.register('Custom', {
       component: CustomComponent,
       defaultProps: {
         label: 'Default Label',
+        placeholder: 'Default placeholder',
       },
     });
 
     const { rerender } = render(<FieldFactory widget="Custom" name="custom" />);
-    expect(screen.getByTestId('custom-field')).toHaveTextContent('Default Label');
+    expect(screen.getByText('Default Label')).toBeInTheDocument();
+    expect(screen.getByTestId('custom-field')).toHaveAttribute(
+      'placeholder',
+      'Default placeholder',
+    );
 
     rerender(<FieldFactory widget="Custom" name="custom" label="Override" />);
-    expect(screen.getByTestId('custom-field')).toHaveTextContent('Override');
+    expect(screen.getByText('Override')).toBeInTheDocument();
   });
 });
