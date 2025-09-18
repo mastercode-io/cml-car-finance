@@ -9,7 +9,8 @@
     "rootDir": "./src",
     "noEmit": false,
     "module": "ESNext",
-    "moduleResolution": "Node"
+    "moduleResolution": "Node",
+    "types": ["node", "react"]
   },
   "include": ["src"],
   "exclude": ["dist", "tests", "**/*.test.ts", "**/*.test.tsx"]
