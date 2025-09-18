@@ -7,9 +7,9 @@ import { cn } from '../../utils/cn';
 import type { FieldProps } from './types';
 
 export function withFieldWrapper<P extends FieldProps>(
-  Component: React.ComponentType<P>
+  Component: React.ComponentType<P>,
 ): React.FC<P> {
-  const Wrapped: React.FC<P> = props => {
+  const Wrapped: React.FC<P> = (props) => {
     const {
       label,
       error,
@@ -32,16 +32,15 @@ export function withFieldWrapper<P extends FieldProps>(
     const descriptionId = description ? `${fieldId}-description` : undefined;
     const helpId = helpText ? `${fieldId}-help` : undefined;
 
-    const describedBy = [ariaDescribedBy, descriptionId, helpId, errorId]
-      .filter(Boolean)
-      .join(' ');
+    const describedBy = [ariaDescribedBy, descriptionId, helpId, errorId].filter(Boolean).join(' ');
 
     const componentProps: P = {
       ...(rest as P),
+      name,
       id: fieldId,
       ariaDescribedBy: describedBy || undefined,
       ariaInvalid: ariaInvalid ?? Boolean(errorMessage),
-      ariaRequired: ariaRequired ?? Boolean(required)
+      ariaRequired: ariaRequired ?? Boolean(required),
     };
 
     return (
