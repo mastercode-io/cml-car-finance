@@ -117,7 +117,7 @@ export class ValidationWorkerClient {
 
   private initWorker(WorkerCtor: WorkerConstructorLike): void {
     try {
-      this.worker = new WorkerCtor(new URL('./validation.worker.js', import.meta.url), {
+      this.worker = new WorkerCtor(new URL('./validation.worker.ts', import.meta.url), {
         type: 'module',
       });
 
