@@ -39,10 +39,3 @@ declare module 'expr-eval' {
     };
   }
 }
-
-declare module 'jsonpath' {
-  const JSONPath: {
-    query<T = unknown>(obj: unknown, path: string): T[];
-  };
-  export default JSONPath;
-}

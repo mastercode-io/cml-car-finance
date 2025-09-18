@@ -90,16 +90,18 @@ describe('ComputedFieldEngine', () => {
   it('computes expressions and rounds values', () => {
     const engine = new ComputedFieldEngine();
     const field = {
-      path: 'totals.monthly',
+      path: '$.totals.monthly',
       expr: 'income - expenses',
-      dependsOn: ['income', 'expenses'],
+      dependsOn: ['$.income', '$.expenses'],
       round: 2,
     } as const;
 
     engine.registerComputedField(field);
-    const result = engine.evaluate(field, { income: 1234.567, expenses: 234.56 });
+    const data = { income: 1234.567, expenses: 234.56 };
+    const result = engine.evaluate(field, data);
     expect(result.value).toBeCloseTo(1000.01, 2);
-    expect(engine.getAffectedFields('income')).toContain('totals.monthly');
+    expect(data.totals?.monthly).toBeCloseTo(1000.01, 2);
+    expect(engine.getAffectedFields('$.income')).toContain('$.totals.monthly');
   });
 });
 

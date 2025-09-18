@@ -20,3 +20,5 @@ export * from './datasources/DataSourceManager';
 export * from './analytics/FormAnalytics';
 export * from './performance/PerformanceBudget';
 export * from './hooks/useStepValidation';
+export * from './hooks/useComputedFields';
+export * from './hooks/useDataSource';
