@@ -17,6 +17,8 @@
     "build:form-engine": "tsc -p packages/form-engine/tsconfig.json"
   },
   "dependencies": {
+    "@babel/parser": "^7.26.2",
+    "@babel/traverse": "^7.25.9",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
@@ -80,9 +82,11 @@
     "vaul": "^0.9.6",
     "web-vitals": "^5.1.0",
     "xstate": "^5.5.0",
-    "zod": "latest"
+    "zod": "latest",
+    "zod-to-json-schema": "^3.23.3"
   },
   "devDependencies": {
+    "@types/babel__traverse": "^7.20.6",
     "@netlify/functions": "^3.0.4",
     "@size-limit/file": "^11.1.4",
     "@testing-library/jest-dom": "^6.2.0",
