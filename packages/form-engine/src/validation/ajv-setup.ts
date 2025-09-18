@@ -21,7 +21,7 @@ export interface PerformanceMetrics {
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 export class ValidationEngine {
-  private ajv: Ajv;
+  private ajv: any;
   private compiledSchemas: Map<string, ValidateFunction> = new Map();
   private performanceMetrics: Map<string, number[]> = new Map();
 
@@ -119,7 +119,7 @@ export class ValidationEngine {
       type: 'object',
       schemaType: 'object',
       errors: true,
-      compile: schema => {
+      compile: (schema: unknown) => {
         const validator = (data: Record<string, unknown>) => {
           if (!schema || typeof schema !== 'object') return true;
           const { condition, fields } = schema as { condition?: unknown; fields?: string[] };
@@ -153,7 +153,7 @@ export class ValidationEngine {
       type: 'object',
       schemaType: 'object',
       errors: false,
-      compile: schema => (data: Record<string, unknown>) => {
+      compile: (schema: unknown) => (data: Record<string, unknown>) => {
         if (!schema || typeof schema !== 'object') return true;
         const { field1, field2, operator } = schema as {
           field1?: string;
@@ -184,7 +184,7 @@ export class ValidationEngine {
       type: 'string',
       schemaType: 'object',
       errors: true,
-      compile: schema => {
+      compile: (schema: unknown) => {
         const validator = async (data: unknown) => {
           if (!schema || typeof schema !== 'object') return true;
           const { endpoint, method = 'POST', timeout = 2000 } = schema as {

@@ -84,7 +84,7 @@ export class PersistenceManager {
 
   async loadDraft(): Promise<DraftData | null> {
     const key = this.getDraftKey();
-    const draft = await this.store.getItem<DraftData>(key);
+    const draft = (await this.store.getItem(key)) as DraftData | null;
     if (!draft) {
       return null;
     }
@@ -131,7 +131,7 @@ export class PersistenceManager {
   }
 
   private async persistDraft(key: string, payload: any): Promise<void> {
-    const existing = await this.store.getItem<DraftData>(key);
+    const existing = (await this.store.getItem(key)) as DraftData | null;
     const timestamp = new Date().toISOString();
 
     let data = payload.data;
@@ -169,7 +169,7 @@ export class PersistenceManager {
   }
 
   private async cleanExpiredDrafts(): Promise<void> {
-    await this.store.iterate<DraftData, void>(async (value: DraftData, key: string) => {
+    await this.store.iterate(async (value: DraftData, key: string) => {
       if (value.metadata.expiresAt && new Date(value.metadata.expiresAt) < new Date()) {
         await this.store.removeItem(key);
       }
@@ -192,7 +192,7 @@ export class PersistenceManager {
 
   private async getDeviceId(): Promise<string> {
     const globalStore = localforage.createInstance({ name: 'FormBuilderMeta', storeName: 'meta' });
-    const existing = await globalStore.getItem<string>(DEVICE_STORAGE_KEY);
+    const existing = (await globalStore.getItem(DEVICE_STORAGE_KEY)) as string | null;
     if (existing) return existing;
     const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUUID();
     await globalStore.setItem(DEVICE_STORAGE_KEY, id);

@@ -108,7 +108,7 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
 };
 
 export class SchemaValidator {
-  private ajv: Ajv;
+  private ajv: any;
 
   constructor() {
     this.ajv = new Ajv({
@@ -198,7 +198,7 @@ export class SchemaValidator {
 
     return {
       valid: Boolean(valid),
-      errors: (this.ajv.errors || []).map(error => ({
+      errors: (this.ajv.errors || []).map((error: any) => ({
         path: error.instancePath,
         message: error.message || 'Schema validation error',
         keyword: error.keyword,

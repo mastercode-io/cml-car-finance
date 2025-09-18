@@ -9,9 +9,9 @@ import { TextAreaField } from '../components/fields/TextAreaField';
 import { TextField } from '../components/fields/TextField';
 import type { WidgetType } from '../types';
 
-export interface FieldComponent {
-  component: React.ComponentType<FieldProps>;
-  defaultProps?: Partial<FieldProps>;
+export interface FieldComponent<TProps extends FieldProps = FieldProps> {
+  component: React.ComponentType<TProps>;
+  defaultProps?: Partial<TProps>;
   validator?: (value: unknown) => boolean | string;
   formatter?: (value: unknown) => unknown;
   parser?: (value: unknown) => unknown;
@@ -20,7 +20,7 @@ export interface FieldComponent {
 export class FieldRegistry {
   private static instance: FieldRegistry | null = null;
 
-  private fields: Map<WidgetType, FieldComponent> = new Map();
+  private fields: Map<WidgetType, FieldComponent<any>> = new Map();
 
   static getInstance(): FieldRegistry {
     if (!FieldRegistry.instance) {
@@ -38,7 +38,7 @@ export class FieldRegistry {
     FieldRegistry.instance = null;
   }
 
-  register(type: WidgetType, field: FieldComponent): void {
+  register(type: WidgetType, field: FieldComponent<any>): void {
     if (this.fields.has(type)) {
       console.warn(`Field type ${type} is being overridden`);
     }
@@ -46,7 +46,7 @@ export class FieldRegistry {
     this.fields.set(type, field);
   }
 
-  get(type: WidgetType): FieldComponent | undefined {
+  get(type: WidgetType): FieldComponent<any> | undefined {
     return this.fields.get(type);
   }
 
@@ -55,7 +55,7 @@ export class FieldRegistry {
     if (!field) {
       throw new Error(`Unknown field type: ${type}`);
     }
-    return field.component;
+    return field.component as React.ComponentType<FieldProps>;
   }
 
   list(): WidgetType[] {
