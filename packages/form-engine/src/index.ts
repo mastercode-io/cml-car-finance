@@ -25,3 +25,5 @@ export * from './performance/PerformanceBudget';
 export * from './hooks/useStepValidation';
 export * from './hooks/useComputedFields';
 export * from './hooks/useDataSource';
+export * from './hooks/useFormAnalytics';
+export * from './components/PerformanceDashboard';

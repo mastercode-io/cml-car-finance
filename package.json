@@ -45,6 +45,7 @@
     "@radix-ui/react-toggle": "^1.1.1",
     "@radix-ui/react-toggle-group": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
+    "@types/gtag.js": "^0.0.20",
     "@xstate/react": "^4.0.0",
     "ajv": "^8.12.0",
     "ajv-errors": "^3.0.0",
@@ -77,6 +78,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
+    "web-vitals": "^5.1.0",
     "xstate": "^5.5.0",
     "zod": "latest"
   },
