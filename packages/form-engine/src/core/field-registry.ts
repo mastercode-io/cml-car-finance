@@ -70,7 +70,9 @@ export function initializeFieldRegistry(): FieldRegistry {
     registry.register('Text', { component: TextField });
     registry.register('Number', { component: NumberField });
     registry.register('TextArea', { component: TextAreaField });
-    registry.register('Select', { component: SelectField });
+    registry.register('Select', {
+      component: SelectField as React.ComponentType<any>
+    });
     registry.register('Checkbox', { component: CheckboxField });
     registry.register('Date', { component: DateField });
   }
