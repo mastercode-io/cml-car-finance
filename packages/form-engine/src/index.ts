@@ -27,3 +27,6 @@ export * from './hooks/useComputedFields';
 export * from './hooks/useDataSource';
 export * from './hooks/useFormAnalytics';
 export * from './components/PerformanceDashboard';
+export * from './migration/ZodMigrator';
+export * from './migration/ReactFormMigrator';
+export * from './testing/PathGenerator';
