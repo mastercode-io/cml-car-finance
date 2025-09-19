@@ -208,7 +208,7 @@ declare module 'jsonpath' {
   export default jsonpath;
 }
 
-// xstate.d.ts (merged)
+// xstate.d.ts — single source of truth
 declare module 'xstate' {
   /* Public event shape */
   export interface EventObject {
