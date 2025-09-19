@@ -52,5 +52,6 @@ declare module 'xstate' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function createMachine(...args: any[]): AnyStateMachine;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  export function assign<TContext = any, TEvent = any>(assignment: any): any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export function assign(...args: any[]): any;
 }
