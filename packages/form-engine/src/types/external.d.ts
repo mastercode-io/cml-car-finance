@@ -208,6 +208,7 @@ declare module 'jsonpath' {
   export default jsonpath;
 }
 
+// xstate.d.ts
 declare module 'xstate' {
   interface EventObject {
     type: string;
@@ -245,10 +246,20 @@ declare module 'xstate' {
       | ((context: TContext, event: TEvent) => Partial<TContext>),
   ): AssignAction<TContext, TEvent>;
 
-  function createMachine<TContext, TEvent extends EventObject = EventObject>(
+  function createMachine<TContext = unknown, TEvent extends EventObject = EventObject>(
     config: MachineConfig<TContext>,
     options?: MachineOptions<TContext, TEvent>,
   ): StateMachine<TContext, TEvent>;
 
-  export { assign, createMachine, EventObject, MachineConfig, MachineOptions, StateMachine };
+  // Compatibility alias
+  export type AnyStateMachine = StateMachine<any, any>;
+
+  export {
+    assign,
+    createMachine,
+    EventObject,
+    MachineConfig,
+    MachineOptions,
+    StateMachine,
+  };
 }

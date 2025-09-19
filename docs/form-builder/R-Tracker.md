@@ -8,7 +8,7 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-03 — Install missing type defs
 - [x] R-04 — Configure ESLint
 - [x] R-05 — Configure Jest
-- [x] R-06 — Update external type declarations
+.- [x] R-06 — Update external type declarations
 - [ ] R-07 — Implement missing field components
 - [ ] R-08 — Update existing fields to use shadcn/ui
 - [ ] R-09 — Register all components in Field Registry
