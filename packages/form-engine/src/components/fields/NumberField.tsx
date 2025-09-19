@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Controller, type FieldValues } from 'react-hook-form';
 
+import { Input } from '../ui/input';
 import { cn } from '../../utils/cn';
 
 import type { FocusEvt, InputChange } from '../../types/events';
@@ -26,7 +27,7 @@ const parseNumberValue = (value: string): number | null => {
   return Number.isNaN(next) ? null : next;
 };
 
-export const NumberField: React.FC<NumberFieldProps> = props => {
+export const NumberField: React.FC<NumberFieldProps> = (props) => {
   const {
     id,
     name,
@@ -49,24 +50,42 @@ export const NumberField: React.FC<NumberFieldProps> = props => {
     componentProps,
     min,
     max,
-    step
+    step,
   } = props;
 
   const fieldId = id ?? name;
-  const resolvedComponentProps = (componentProps ?? {}) as React.InputHTMLAttributes<HTMLInputElement>;
+  const resolvedComponentProps = (componentProps ?? {}) as React.ComponentProps<typeof Input>;
+  const {
+    className: componentClassName,
+    onChange: componentOnChange,
+    onBlur: componentOnBlur,
+    onFocus: componentOnFocus,
+    defaultValue: componentDefaultValue,
+    placeholder: componentPlaceholder,
+    disabled: componentDisabled,
+    readOnly: componentReadOnly,
+    min: componentMin,
+    max: componentMax,
+    step: componentStep,
+    ...restComponentProps
+  } = resolvedComponentProps;
+
+  const mergedMin = min ?? (componentMin as number | string | undefined);
+  const mergedMax = max ?? (componentMax as number | string | undefined);
+  const mergedStep = step ?? (componentStep as number | string | undefined);
 
   const handleBlur = React.useCallback(
     (event: FocusEvt) => {
       onBlur?.(event);
     },
-    [onBlur]
+    [onBlur],
   );
 
   const handleFocus = React.useCallback(
     (event: FocusEvt) => {
       onFocus?.(event);
     },
-    [onFocus]
+    [onFocus],
   );
 
   const handleValueChange = React.useCallback(
@@ -79,7 +98,7 @@ export const NumberField: React.FC<NumberFieldProps> = props => {
         onNumberChange?.(nextValue);
       }
     },
-    [onChange, onNumberChange, onValueChange]
+    [onChange, onNumberChange, onValueChange],
   );
 
   if (control) {
@@ -89,44 +108,52 @@ export const NumberField: React.FC<NumberFieldProps> = props => {
         control={control}
         rules={rules}
         defaultValue={
-          typeof defaultValue === 'number' ? defaultValue : parseNumberValue(String(defaultValue ?? ''))
+          typeof defaultValue === 'number'
+            ? defaultValue
+            : parseNumberValue(String(defaultValue ?? ''))
         }
         render={({ field, fieldState }) => (
-          <input
-            {...resolvedComponentProps}
-            {...field}
+          <Input
+            {...restComponentProps}
             id={fieldId}
             type="number"
             inputMode="decimal"
+            name={name}
             value={
               typeof field.value === 'number'
                 ? field.value
-                : parseNumberValue(String(field.value ?? '')) ?? ''
+                : (parseNumberValue(String(field.value ?? '')) ?? '')
             }
-            placeholder={placeholder}
-            disabled={disabled}
-            readOnly={readOnly}
-            min={min}
-            max={max}
-            step={step}
+            placeholder={placeholder ?? componentPlaceholder}
+            disabled={disabled ?? componentDisabled}
+            readOnly={readOnly ?? componentReadOnly}
+            min={mergedMin}
+            max={mergedMax}
+            step={mergedStep}
             aria-describedby={ariaDescribedBy}
             aria-invalid={ariaInvalid ?? Boolean(fieldState.error)}
             aria-required={ariaRequired}
             className={cn(
-              'block w-full rounded-md border px-3 py-2 text-sm',
+              componentClassName,
               className,
-              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive'
+              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive',
             )}
             onChange={(event: InputChange) => {
+              componentOnChange?.(event);
               const nextValue = parseNumberValue(event.target.value);
               field.onChange(nextValue);
               handleValueChange(event);
             }}
-            onBlur={(event: FocusEvt) => {
+            onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnBlur?.(event);
               field.onBlur();
-              handleBlur(event);
+              handleBlur(event as FocusEvt);
             }}
-            onFocus={handleFocus}
+            onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnFocus?.(event);
+              handleFocus(event as FocusEvt);
+            }}
+            ref={field.ref}
           />
         )}
       />
@@ -134,37 +161,52 @@ export const NumberField: React.FC<NumberFieldProps> = props => {
   }
 
   const inputValue =
-    value === undefined ? undefined : typeof value === 'number' ? value : value === null ? '' : undefined;
+    value === undefined
+      ? undefined
+      : typeof value === 'number'
+        ? value
+        : value === null
+          ? ''
+          : undefined;
 
   const defaultInputValue =
     inputValue === undefined
       ? typeof defaultValue === 'number'
         ? defaultValue
-        : parseNumberValue(String(defaultValue ?? '')) ?? undefined
+        : (parseNumberValue(String(defaultValue ?? '')) ?? undefined)
       : undefined;
 
   return (
-    <input
-      {...resolvedComponentProps}
+    <Input
+      {...restComponentProps}
       id={fieldId}
       name={name}
       type="number"
       inputMode="decimal"
-      value={inputValue}
-      defaultValue={defaultInputValue}
-      placeholder={placeholder}
-      disabled={disabled}
-      readOnly={readOnly}
-      min={min}
-      max={max}
-      step={step}
+      value={inputValue ?? undefined}
+      defaultValue={defaultInputValue ?? (componentDefaultValue as number | string | undefined)}
+      placeholder={placeholder ?? componentPlaceholder}
+      disabled={disabled ?? componentDisabled}
+      readOnly={readOnly ?? componentReadOnly}
+      min={mergedMin}
+      max={mergedMax}
+      step={mergedStep}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       aria-required={ariaRequired}
-      className={cn('block w-full rounded-md border px-3 py-2 text-sm', className, ariaInvalid && 'border-destructive')}
-      onChange={handleValueChange}
-      onBlur={handleBlur}
-      onFocus={handleFocus}
+      className={cn(componentClassName, className, ariaInvalid && 'border-destructive')}
+      onChange={(event: InputChange) => {
+        componentOnChange?.(event);
+        handleValueChange(event);
+      }}
+      onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnBlur?.(event);
+        handleBlur(event as FocusEvt);
+      }}
+      onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnFocus?.(event);
+        handleFocus(event as FocusEvt);
+      }}
     />
   );
 };

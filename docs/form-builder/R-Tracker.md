@@ -8,10 +8,10 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-03 — Install missing type defs
 - [x] R-04 — Configure ESLint
 - [x] R-05 — Configure Jest
-.- [x] R-06 — Update external type declarations
-- [ ] R-07 — Implement missing field components
-- [ ] R-08 — Update existing fields to use shadcn/ui
-- [ ] R-09 — Register all components in Field Registry
+- [x] R-06 — Update external type declarations
+- [x] R-07 — Implement missing field components
+- [x] R-08 — Update existing fields to use shadcn/ui
+- [x] R-09 — Register all components in Field Registry
 - [ ] R-10 — Complete XState submission action
 - [ ] R-11 — Add XState integration tests
 - [ ] R-12 — Add smoke tests
@@ -27,6 +27,9 @@ Initialized: 2025-09-19 10:43 UTC
 | R-04 | Replaced legacy ESLint config with plan-aligned .eslintrc.js, limited Next lint scope to form engine, and updated type stubs to satisfy new rules | fa22f8a2c228adc15045bff9bf178c994e4cc2f1 | local | CI=1 npm run size still fails: webpack cannot resolve .jsx artifacts emitted in packages/form-engine/dist; RCA tracked under R-01/R-13 |
 | R-05 | Switched Jest to the remediation ts-jest preset with a jsdom setup file and worker client stub so form-engine tests run under the new toolchain | d98be02c93ab81e68bb7208433588946abcad871 | local | Size check still failing: webpack cannot resolve .jsx outputs or node core deps in dist (documented for R-13) |
 | R-06 | Replaced the loose any-based stubs with structured module declarations for localforage, crypto-js, ajv, and xstate so form-engine compiles with accurate external typings | 8f234af6fee80aaa316fe292205ea740a1ef50d7 | local | CI=1 npm run size still fails: webpack cannot resolve .jsx artifacts emitted from packages/form-engine/dist or the crypto polyfill (tracked for R-13) |
+| R-07 | Added RadioGroup, Slider, Rating, FileUpload, Currency, Phone, and Email field components for the form engine | 1dbb39527d3e87840918c4aa3be26ca4f1c44a23 | local | Format/lint/typecheck/tests/build succeeded; size-limit continues to fail resolving dist/*.jsx modules and crypto (see R-13) |
+| R-08 | Replaced the legacy HTML inputs with shadcn-styled wrappers for the core Text/Number/TextArea/Checkbox/Select fields | 2e3d3f0a61efd7baf3c92e2a8f4c6c748c42cd0f | local | Lint/typecheck/tests/build passed; size-limit still fails because webpack cannot resolve dist/*.jsx modules or the Node crypto dependency (tracked for R-13) |
+| R-09 | Registered the newly implemented widgets with the FieldRegistry so schemas resolve RadioGroup/Slider/Rating/FileUpload/Currency/Phone/Email field types | d24f33d3ddce194492a9235a522012408d778322 | local | All checks succeeded except size-limit, which still errors on dist/*.jsx imports and the missing crypto polyfill when bundling packages/form-engine/dist (tracked for R-13) |
 
 ## CI Summary (latest)
 - Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☐ (size-limit webpack resolution failure)

@@ -210,56 +210,65 @@ declare module 'jsonpath' {
 
 // xstate.d.ts
 declare module 'xstate' {
-  interface EventObject {
+  /* Public event shape */
+  export interface EventObject {
     type: string;
     [key: string]: unknown;
   }
 
-  type AssignObject<TContext, TEvent extends EventObject> = {
+  /* Assign helpers */
+  export type AssignObject<TContext, TEvent extends EventObject> = {
     [key: string]: (context: TContext, event: TEvent) => unknown;
   };
 
-  type AssignAction<TContext, TEvent extends EventObject> = (
+  export type AssignAction<TContext, TEvent extends EventObject> = (
     context: TContext,
-    event: TEvent,
+    event: TEvent
   ) => unknown;
 
-  interface MachineConfig<TContext> {
+  /* Machine config */
+  export interface MachineConfig<TContext> {
     id?: string;
     initial: string;
     context: TContext;
     states: Record<string, unknown>;
   }
 
-  interface MachineOptions<TContext, TEvent extends EventObject> {
+  export interface MachineOptions<TContext, TEvent extends EventObject = EventObject> {
     actions?: Record<string, (context: TContext, event: TEvent) => unknown>;
     guards?: Record<string, (context: TContext, event: TEvent) => boolean>;
     services?: Record<string, unknown>;
   }
 
-  type StateMachine<TContext = unknown, TEvent extends EventObject = EventObject> = unknown;
+  /* Lightweight runtime shape used in our code */
+  export interface StateSnapshot<TContext> {
+    context: TContext;
+  }
 
-  function assign<TContext = unknown, TEvent extends EventObject = EventObject>(
+  export type StateMachine<TContext = unknown, TEvent extends EventObject = EventObject> = {
+    initialState: StateSnapshot<TContext>;
+    transition: (state: StateSnapshot<TContext>, event: TEvent) => StateSnapshot<TContext>;
+  };
+
+  /* API surface we actually call */
+  export function assign<
+    TContext = unknown,
+    TEvent extends EventObject = EventObject
+  >(
     assignment:
       | AssignObject<TContext, TEvent>
       | Partial<TContext>
-      | ((context: TContext, event: TEvent) => Partial<TContext>),
+      | ((context: TContext, event: TEvent) => Partial<TContext>)
   ): AssignAction<TContext, TEvent>;
 
-  function createMachine<TContext = unknown, TEvent extends EventObject = EventObject>(
+  export function createMachine<
+    TContext = unknown,
+    TEvent extends EventObject = EventObject
+  >(
     config: MachineConfig<TContext>,
-    options?: MachineOptions<TContext, TEvent>,
+    options?: MachineOptions<TContext, TEvent>
   ): StateMachine<TContext, TEvent>;
 
-  // Compatibility alias
+  /* Compatibility alias */
   export type AnyStateMachine = StateMachine<any, any>;
-
-  export {
-    assign,
-    createMachine,
-    EventObject,
-    MachineConfig,
-    MachineOptions,
-    StateMachine,
-  };
 }
