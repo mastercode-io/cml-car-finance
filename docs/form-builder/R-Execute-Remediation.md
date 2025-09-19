@@ -5,6 +5,8 @@
 ---
 
 ## Inputs
+- PDR: `/docs/form-builder/form-builder-PRD-v2.2.md`
+- Implementation plan overview: `/docs/form-builder/implementation-pln-summary.md`
 - Plan: `/docs/form-builder/remediation-plan.md`
 - Prior review: `/docs/form-builder/codex-review.md` (for pass/fail context)
 - Repo rules: `/AGENTS.md`
