@@ -15,6 +15,7 @@ try {
 const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
+    dirs: ['packages/form-engine/src'],
   },
   typescript: {
     ignoreBuildErrors: true,
