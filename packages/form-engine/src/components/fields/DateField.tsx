@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Controller, type FieldValues } from 'react-hook-form';
 
+import { Input } from '../ui/input';
 import { cn } from '../../utils/cn';
 
 import type { FocusEvt, InputChange } from '../../types/events';
@@ -45,7 +46,7 @@ const toDate = (value: string): Date | undefined => {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 };
 
-export const DateField: React.FC<DateFieldProps> = props => {
+export const DateField: React.FC<DateFieldProps> = (props) => {
   const {
     id,
     name,
@@ -59,6 +60,7 @@ export const DateField: React.FC<DateFieldProps> = props => {
     onBlur,
     onFocus,
     className,
+    placeholder,
     defaultValue,
     value,
     ariaDescribedBy,
@@ -66,24 +68,37 @@ export const DateField: React.FC<DateFieldProps> = props => {
     ariaRequired,
     componentProps,
     min,
-    max
+    max,
   } = props;
 
   const fieldId = id ?? name;
-  const resolvedComponentProps = (componentProps ?? {}) as React.InputHTMLAttributes<HTMLInputElement>;
+  const resolvedComponentProps = (componentProps ?? {}) as React.ComponentProps<typeof Input>;
+  const {
+    className: componentClassName,
+    onChange: componentOnChange,
+    onBlur: componentOnBlur,
+    onFocus: componentOnFocus,
+    defaultValue: componentDefaultValue,
+    disabled: componentDisabled,
+    readOnly: componentReadOnly,
+    min: componentMin,
+    max: componentMax,
+    placeholder: componentPlaceholder,
+    ...restComponentProps
+  } = resolvedComponentProps;
 
   const handleBlur = React.useCallback(
     (event: FocusEvt) => {
       onBlur?.(event);
     },
-    [onBlur]
+    [onBlur],
   );
 
   const handleFocus = React.useCallback(
     (event: FocusEvt) => {
       onFocus?.(event);
     },
-    [onFocus]
+    [onFocus],
   );
 
   const handleChange = React.useCallback(
@@ -93,11 +108,11 @@ export const DateField: React.FC<DateFieldProps> = props => {
       onValueChange?.(nextValue);
       onDateSelect?.(toDate(nextValue));
     },
-    [onChange, onDateSelect, onValueChange]
+    [onChange, onDateSelect, onValueChange],
   );
 
-  const minValue = normalizeDateBoundary(min);
-  const maxValue = normalizeDateBoundary(max);
+  const minValue = normalizeDateBoundary(min ?? (componentMin as string | Date | undefined));
+  const maxValue = normalizeDateBoundary(max ?? (componentMax as string | Date | undefined));
 
   if (control) {
     return (
@@ -107,13 +122,13 @@ export const DateField: React.FC<DateFieldProps> = props => {
         rules={rules}
         defaultValue={toInputValue(defaultValue)}
         render={({ field, fieldState }) => (
-          <input
-            {...resolvedComponentProps}
-            {...field}
+          <Input
+            {...restComponentProps}
             id={fieldId}
             type="date"
-            disabled={disabled}
-            readOnly={readOnly}
+            name={name}
+            disabled={disabled ?? componentDisabled}
+            readOnly={readOnly ?? componentReadOnly}
             value={toInputValue(field.value)}
             min={minValue}
             max={maxValue}
@@ -121,19 +136,26 @@ export const DateField: React.FC<DateFieldProps> = props => {
             aria-invalid={ariaInvalid ?? Boolean(fieldState.error)}
             aria-required={ariaRequired}
             className={cn(
-              'block w-full rounded-md border px-3 py-2 text-sm',
+              componentClassName,
               className,
-              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive'
+              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive',
             )}
             onChange={(event: InputChange) => {
+              componentOnChange?.(event);
               field.onChange(event.target.value);
               handleChange(event);
             }}
-            onBlur={(event: FocusEvt) => {
+            onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnBlur?.(event);
               field.onBlur();
-              handleBlur(event);
+              handleBlur(event as FocusEvt);
             }}
-            onFocus={handleFocus}
+            onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnFocus?.(event);
+              handleFocus(event as FocusEvt);
+            }}
+            placeholder={placeholder ?? componentPlaceholder}
+            ref={field.ref}
           />
         )}
       />
@@ -144,24 +166,34 @@ export const DateField: React.FC<DateFieldProps> = props => {
   const defaultInputValue = inputValue === undefined ? toInputValue(defaultValue) : undefined;
 
   return (
-    <input
-      {...resolvedComponentProps}
+    <Input
+      {...restComponentProps}
       id={fieldId}
       name={name}
       type="date"
-      disabled={disabled}
-      readOnly={readOnly}
-      value={inputValue}
-      defaultValue={defaultInputValue}
+      disabled={disabled ?? componentDisabled}
+      readOnly={readOnly ?? componentReadOnly}
+      value={inputValue ?? undefined}
+      defaultValue={defaultInputValue ?? (componentDefaultValue as string | undefined)}
+      placeholder={placeholder ?? componentPlaceholder}
       min={minValue}
       max={maxValue}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       aria-required={ariaRequired}
-      className={cn('block w-full rounded-md border px-3 py-2 text-sm', className, ariaInvalid && 'border-destructive')}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      onFocus={handleFocus}
+      className={cn(componentClassName, className, ariaInvalid && 'border-destructive')}
+      onChange={(event: InputChange) => {
+        componentOnChange?.(event);
+        handleChange(event);
+      }}
+      onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnBlur?.(event);
+        handleBlur(event as FocusEvt);
+      }}
+      onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnFocus?.(event);
+        handleFocus(event as FocusEvt);
+      }}
     />
   );
 };
