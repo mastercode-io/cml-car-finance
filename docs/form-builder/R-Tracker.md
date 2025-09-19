@@ -3,7 +3,7 @@
 Initialized: 2025-09-19 10:43 UTC
 
 ## Checklist
-- [ ] R-01 — Install missing dev dependencies
+- [x] R-01 — Install missing dev dependencies
 - [ ] R-02 — Install missing runtime deps
 - [ ] R-03 — Install missing type defs
 - [ ] R-04 — Configure ESLint
@@ -21,6 +21,13 @@ Initialized: 2025-09-19 10:43 UTC
 ## Log
 | ID   | Summary | Commit | CI Run | Notes |
 |------|---------|--------|--------|-------|
+| R-01 | Added @playwright/test and @size-limit/preset-big-lib to devDependencies | 843862abfed463a3fe9bf37ab4537f03ccdf9ee8 | local | Size check fails (webpack can't resolve .jsx outputs in dist); see RCA |
 
 ## CI Summary (latest)
-- Lint: ☐/☑ | Typecheck: ☐/☑ | Tests: ☐/☑ | Build: ☐/☑ | Size: ☐/☑
+- Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☐ (size-limit webpack resolution failure)
+
+## RCA (if any)
+- **ID:** R-01  
+  **Root cause:** `size-limit` (webpack preset) attempts to bundle `packages/form-engine/dist/index.js`, but the compiled field components are emitted as `.jsx` files so webpack cannot resolve the imports.  
+  **Fix applied:** None — remediation requires converting build output to `.js` or adjusting bundler config, which is out of scope for R-01.  
+  **Follow-up:** Address module resolution when tackling size-limit configuration (R-13) or adjust the build pipeline to emit `.js` bundles.
