@@ -14,11 +14,6 @@ interface DraftRecoveryProps {
 
 export const DraftRecovery: React.FC<DraftRecoveryProps> = ({ draft, onRecover, onDiscard }) => {
   const [isVisible, setIsVisible] = useState(true);
-
-  if (!isVisible) {
-    return null;
-  }
-
   const timeSinceUpdate = useMemo(
     () =>
       formatDistanceToNow(new Date(draft.metadata.updatedAt), {
@@ -26,6 +21,10 @@ export const DraftRecovery: React.FC<DraftRecoveryProps> = ({ draft, onRecover, 
       }),
     [draft.metadata.updatedAt],
   );
+
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
