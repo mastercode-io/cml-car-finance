@@ -8,11 +8,13 @@
   "include": [
     "packages/form-engine/src/**/*.ts",
     "packages/form-engine/src/**/*.tsx",
-    "packages/form-engine/src/**/*.d.ts"
+    "packages/form-engine/src/types/**/*.d.ts"
   ],
   "exclude": [
     "packages/form-engine/dist",
     "packages/form-engine/tests",
+    "**/*.test.ts",
+    "**/*.test.tsx",
     "node_modules"
   ]
 }
