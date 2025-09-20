@@ -10,6 +10,7 @@
     "noEmit": false,
     "module": "ESNext",
     "moduleResolution": "Node",
+    "jsx": "react-jsx",
     "types": ["node", "react"]
   },
   "include": ["src"],

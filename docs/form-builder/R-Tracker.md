@@ -14,13 +14,15 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-09 — Register all components in Field Registry
 - [x] R-10 — Complete XState submission action
 - [x] R-11 — Add XState integration tests
+- [x] R-Stab-01 — Single-source ambient types
+- [x] R-Stab-02 — Verify form-engine public exports
 - [ ] R-12 — Add smoke tests
 - [ ] R-13 — Configure size-limit
 - [ ] R-14 — Create minimal demo and E2E test
 
 ## Log
 | ID   | Summary | Commit | CI Run | Notes |
-|------|---------|--------|--------|-------|
+| ---- | ------- | ------ | ------ | ----- |
 | R-01 | Added @playwright/test and @size-limit/preset-big-lib to devDependencies | 1b2493a97c259d472369a0f23bf12fbf3bcf8449 | local | Size check fails (webpack can't resolve .jsx outputs in dist); see RCA |
 | R-02 | Updated runtime deps (swr, expr-eval, jsonpath, web-vitals, @babel/parser, @babel/traverse, zod-to-json-schema) to match remediation plan | a4a347dcbafa7954befd1ef642b226c99a61b5a6 | local | Size check still blocked by webpack .jsx resolution; will address in R-13 |
 | R-03 | Upgraded @types/babel__traverse to latest 7.28.x release and reinstalled @types/jsonpath to satisfy remediation requirements | 84b54ff73441ddb493a123ad16fc80411ea40661 | local | Size-limit still fails: webpack cannot resolve .jsx outputs under packages/form-engine/dist (tracked in R-01 RCA) |
@@ -32,6 +34,8 @@ Initialized: 2025-09-19 10:43 UTC
 | R-09 | Registered the newly implemented widgets with the FieldRegistry so schemas resolve RadioGroup/Slider/Rating/FileUpload/Currency/Phone/Email field types | d24f33d3ddce194492a9235a522012408d778322 | local | All checks succeeded except size-limit, which still errors on dist/*.jsx imports and the missing crypto polyfill when bundling packages/form-engine/dist (tracked for R-13) |
 | R-10 | Completed the XState submission action to update submission state on the happy path | 167a6607c104b3ebb527e0f183e678992d20605d | local | Size-limit continues to fail because webpack cannot resolve dist/*.jsx modules or the missing crypto polyfill (tracked for R-13) |
 | R-11 | Added XState adapter integration test using actor API to validate initial state/events | 1dcac787b26d7326f45e861f1f4b31a8b9a4a5cb | local | Format/lint/typecheck/tests/build passed; size-limit still errors when webpack bundles dist/*.jsx outputs and the missing crypto polyfill (tracked for R-13) |
+| R-Stab-01 | Added merge-marker and xstate ambient type guards to enforce single source of truth | 1682591c05dd873ad9941e644fe1daf2c853f3b5 | local | All checks passed except size-limit, which still fails on dist-relative field imports and the missing crypto fallback (to be addressed in R-Stab-02/R-Stab-03) |
+| R-Stab-02 | Normalized form-engine public exports and patched build artifacts to emit .js entrypoints for webpack | 4757b2f444101d340db9943d39ae8159d6b26e84 | local | size-limit still fails: webpack needs a crypto polyfill/external; to be handled in R-Stab-03 |
 
 ## CI Summary (latest)
 - Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☐ (size-limit webpack resolution failure)

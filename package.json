@@ -7,14 +7,15 @@
     "netlify-dev": "netlify dev",
     "build": "node scripts/run-next-with-env.js build",
     "start": "node scripts/run-next-with-env.js start",
-    "lint": "node scripts/run-next-with-env.js lint",
+    "lint": "node scripts/run-next-with-env.js lint && npm run ci:guards",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss,yml,yaml}\"",
     "typecheck": "tsc --noEmit -p tsconfig.form-engine.json",
     "test": "jest",
     "test:ci": "jest --ci",
     "size": "npm run build:form-engine --silent && size-limit",
     "postinstall": "rm -rf .next && echo '✅ Cleared old .next build after install'",
-    "build:form-engine": "tsc -p packages/form-engine/tsconfig.json"
+    "build:form-engine": "node -e \"const fs=require('fs');fs.rmSync('packages/form-engine/dist', { recursive: true, force: true });fs.rmSync('packages/form-engine/tsconfig.tsbuildinfo', { force: true });\" && tsc -p packages/form-engine/tsconfig.json && node scripts/fix-form-engine-dist.js",
+    "ci:guards": "node scripts/ci-guards.js"
   },
   "dependencies": {
     "@babel/parser": "^7.28.4",
