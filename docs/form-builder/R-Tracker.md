@@ -16,8 +16,6 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-11 — Add XState integration tests
 - [x] R-Stab-01 — Single-source ambient types
 - [x] R-Stab-02 — Verify form-engine public exports
-- [ ] R-Stab-03 — Configure size-limit for form-engine
-- [ ] R-Stab-04 — Form-engine build hygiene sweep
 - [ ] R-12 — Add smoke tests
 - [ ] R-13 — Configure size-limit
 - [ ] R-14 — Create minimal demo and E2E test
