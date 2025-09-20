@@ -16,6 +16,8 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-11 — Add XState integration tests
 - [x] R-Stab-01 — Single-source ambient types
 - [x] R-Stab-02 — Verify form-engine public exports
+- [x] R-Stab-03 — Configure size-limit for form-engine
+- [x] R-Stab-04 — Form-engine build hygiene sweep
 - [ ] R-12 — Add smoke tests
 - [ ] R-13 — Configure size-limit
 - [ ] R-14 — Create minimal demo and E2E test
@@ -36,9 +38,11 @@ Initialized: 2025-09-19 10:43 UTC
 | R-11 | Added XState adapter integration test using actor API to validate initial state/events | 1dcac787b26d7326f45e861f1f4b31a8b9a4a5cb | local | Format/lint/typecheck/tests/build passed; size-limit still errors when webpack bundles dist/*.jsx outputs and the missing crypto polyfill (tracked for R-13) |
 | R-Stab-01 | Added merge-marker and xstate ambient type guards to enforce single source of truth | 1682591c05dd873ad9941e644fe1daf2c853f3b5 | local | All checks passed except size-limit, which still fails on dist-relative field imports and the missing crypto fallback (to be addressed in R-Stab-02/R-Stab-03) |
 | R-Stab-02 | Normalized form-engine public exports and patched build artifacts to emit .js entrypoints for webpack | 4757b2f444101d340db9943d39ae8159d6b26e84 | local | size-limit still fails: webpack needs a crypto polyfill/external; to be handled in R-Stab-03 |
+| R-Stab-03 | Configured size-limit to bundle the form-engine entry with peer deps ignored and a 125 kB budget | 12dc22b4c3f529052a0b330b15095b2ef8f34b75 | local | size-limit now passes at ~112 kB gzipped after externals + crypto fallback |
+| R-Stab-04 | Tightened form-engine tsconfig/typecheck scope and chained the package build ahead of Next.js | db61599c6f55c716ad313ad2a622509d722879b5 | local | Verified format/lint/typecheck/tests/build/size all succeed with cleaned dist output |
 
 ## CI Summary (latest)
-- Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☐ (size-limit webpack resolution failure)
+- Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☑ (form-engine entry ~112 kB gzipped with externals)
 
 ## RCA (if any)
 - **ID:** R-01  

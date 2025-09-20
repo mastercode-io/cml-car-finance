@@ -5,6 +5,14 @@
     "rootDir": "./packages/form-engine/src",
     "outDir": "./packages/form-engine/dist"
   },
-  "include": ["packages/form-engine/src", "packages/form-engine/src/types"],
-  "exclude": ["packages/form-engine/dist", "node_modules"]
+  "include": [
+    "packages/form-engine/src/**/*.ts",
+    "packages/form-engine/src/**/*.tsx",
+    "packages/form-engine/src/**/*.d.ts"
+  ],
+  "exclude": [
+    "packages/form-engine/dist",
+    "packages/form-engine/tests",
+    "node_modules"
+  ]
 }

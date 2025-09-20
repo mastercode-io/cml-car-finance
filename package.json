@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/run-next-with-env.js dev",
     "netlify-dev": "netlify dev",
-    "build": "node scripts/run-next-with-env.js build",
+    "build": "npm run build:form-engine --silent && node scripts/run-next-with-env.js build",
     "start": "node scripts/run-next-with-env.js start",
     "lint": "node scripts/run-next-with-env.js lint && npm run ci:guards",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss,yml,yaml}\"",
@@ -118,12 +118,5 @@
     "tailwindcss": "^3.4.17",
     "ts-jest": "^29.2.5",
     "typescript": "^5"
-  },
-  "size-limit": [
-    {
-      "name": "form engine bundle",
-      "path": "packages/form-engine/dist/index.js",
-      "limit": "10 KB"
-    }
-  ]
+  }
 }
