@@ -3,11 +3,20 @@ import { assign, createMachine } from 'xstate';
 import type { ComplexityAnalysis, Rule, TransitionContext, UnifiedFormSchema } from '../types';
 import { RuleEvaluator } from './rule-evaluator';
 
+interface SubmissionSnapshot {
+  isSubmitting: boolean;
+  submitted: boolean;
+  submitCount: number;
+  lastSubmittedAt?: string;
+  error?: string | null;
+}
+
 interface FormMachineContext {
   formData: Record<string, unknown>;
   currentStep: string;
   completedSteps: string[];
   errors: Record<string, unknown>;
+  submissionState: SubmissionSnapshot;
 }
 
 type FormMachineEvent =
@@ -81,6 +90,12 @@ export class XStateAdapter {
           currentStep: initialStep,
           completedSteps: [],
           errors: {},
+          submissionState: {
+            isSubmitting: false,
+            submitted: false,
+            submitCount: 0,
+            error: null,
+          },
         },
         states,
       },
@@ -99,9 +114,16 @@ export class XStateAdapter {
               };
             },
           }),
-          submitForm: () => {
-            // Placeholder for async submission hook
-          },
+          submitForm: assign<FormMachineContext, FormMachineEvent>({
+            submissionState: (context) => ({
+              isSubmitting: false,
+              submitted: true,
+              submitCount: context.submissionState.submitCount + 1,
+              lastSubmittedAt: new Date().toISOString(),
+              error: null,
+            }),
+            errors: () => ({}),
+          }),
         },
         guards: this.buildGuards(schema) as any,
       },
@@ -234,6 +256,15 @@ export class XStateAdapter {
         context.completedSteps.includes(stepId)
           ? context.completedSteps
           : [...context.completedSteps, stepId],
+      submissionState: (context: FormMachineContext) =>
+        target === 'complete'
+          ? {
+              ...context.submissionState,
+              isSubmitting: true,
+              submitted: false,
+              error: null,
+            }
+          : context.submissionState,
     });
   }
 }

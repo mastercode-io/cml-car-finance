@@ -422,7 +422,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
 
             <div className="space-y-6 p-6">
               <div className="space-y-4">
-                {Object.entries(stepProperties).map(([fieldName, fieldSchema]) => {
+                {Object.entries(stepProperties).map(([fieldName]) => {
                   if (!visibleFields.includes(fieldName)) {
                     return null;
                   }
