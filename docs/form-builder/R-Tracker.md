@@ -49,7 +49,6 @@ Initialized: 2025-09-19 10:43 UTC
                            |
 
 
-
 ## CI Summary (latest)
 
 - Lint: ☑ | Typecheck: ☑ | Tests: ☑ | Build: ☑ | Size: ☑ (raw dist 585 B / webpack bundle 111.85 kB gz)
