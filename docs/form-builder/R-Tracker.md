@@ -21,7 +21,7 @@ Initialized: 2025-09-19 10:43 UTC
 - [x] R-Stab-04 — Form-engine build hygiene sweep
 - [x] R-12 — Add smoke tests
 - [x] R-13 — Configure size-limit
-- [ ] R-14 — Create minimal demo and E2E test
+- [x] R-14 — Create minimal demo and E2E test
 
 ## Log
 
@@ -44,6 +44,10 @@ Initialized: 2025-09-19 10:43 UTC
 | R-Stab-02 | Normalized form-engine public exports and patched build artifacts to emit .js entrypoints for webpack                                                                     | 4757b2f444101d340db9943d39ae8159d6b26e84 | local  | size-limit still fails: webpack needs a crypto polyfill/external; to be handled in R-Stab-03                                                                                 |
 | R-Stab-03 | Configured size-limit to bundle the form-engine entry with peer deps ignored and a 125 kB budget                                                                          | 12dc22b4c3f529052a0b330b15095b2ef8f34b75 | local  | size-limit now passes at ~112 kB gzipped after externals + crypto fallback                                                                                                   |
 | R-Stab-04 | Tightened form-engine tsconfig/typecheck scope and chained the package build ahead of Next.js                                                                             | db61599c6f55c716ad313ad2a622509d722879b5 | local  | Verified format/lint/typecheck/tests/build/size all succeed with cleaned dist output                                                                                         |
+| R-14      | Added a Suspense-wrapped demo page and Playwright smoke covering happy-path navigation to Employment step
+                                                        | pending-local                            | local  | Format/lint/typecheck/tests/build/size + demo Playwright smoke executed locally
+                           |
+
 
 ## CI Summary (latest)
 

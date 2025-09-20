@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.form-engine.json",
     "test": "jest",
     "test:ci": "jest --ci",
+    "test:e2e": "playwright test",
     "size": "npm run build:form-engine --silent && size-limit",
     "postinstall": "rm -rf .next && echo '✅ Cleared old .next build after install'",
     "build:form-engine": "node -e \"const fs=require('fs');fs.rmSync('packages/form-engine/dist', { recursive: true, force: true });fs.rmSync('packages/form-engine/tsconfig.tsbuildinfo', { force: true });\" && tsc -p packages/form-engine/tsconfig.json && node scripts/fix-form-engine-dist.js",
