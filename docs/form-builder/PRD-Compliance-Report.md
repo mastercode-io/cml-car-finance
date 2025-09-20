@@ -1,0 +1,81 @@
+# Form Builder PRD v2.2 Compliance Report
+
+- **Repository commit:** [`13a2f54`](../../commit/13a2f54148b4b46e1a37900a0f718922336a99c4)
+- **Legend:** ✅ – implemented or tooling in place. ❌ – not implemented or gaps remain.
+
+## 3. Governance & Versioning
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Unified schema objects carry `$id`, semantic `version`, metadata, steps, transitions, UI, computed fields, data sources, and validation config | ✅ | [schema.types.ts](../../packages/form-engine/src/types/schema.types.ts#L1-L48) | Type system covers all unified-schema concerns described in the PRD.
+| Version manager maintains ordered versions and migration hooks | ✅ | [schema-versioning.ts](../../packages/form-engine/src/core/schema-versioning.ts#L1-L69) | Provides migration pipelines, but still needs wiring into delivery workflows.
+| Schema Review Board workflow & catalog | ❌ | [PRD mention only](./form-builder-PRD-v2.2.md#L15) | No governance artifacts, automation, or documentation exist outside the PRD reference.【be67b8†L1-L6】
+| Rollback procedures (CDN copies, version flags, automated rollback on >5% error spike) | ❌ | [PRD mention only](./form-builder-PRD-v2.2.md#L35) | Codebase lacks feature flags, CDN retention scripts, or monitoring hooks for auto rollback.【66e801†L1-L9】
+| Submission payload contract (payloadVersion, hidden field handling) | ✅ | [PersistenceManager.ts](../../packages/form-engine/src/persistence/PersistenceManager.ts#L34-L222) | Draft payloads persist `payloadVersion` and strip autosave for high-sensitivity drafts without encryption, but hidden-field stripping still needs backend alignment.
+
+## 5. Unified Schema & Composition
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Deterministic schema composition with `extends` precedence | ✅ | [schema-composer.ts](../../packages/form-engine/src/core/schema-composer.ts#L3-L117) | Composer recursively loads bases and merges steps/transitions per PRD guidance.
+| Conflict resolution requires explicit override + reason | ❌ | [schema-composer.ts](../../packages/form-engine/src/core/schema-composer.ts#L47-L86) | Merge logic silently overwrites collisions; no guard that forces `{ "override": true, "reason": "..." }` failures as mandated.
+| Computed field definitions (expr, dependsOn, rounding, cache, fallback) | ✅ | [computed.types.ts](../../packages/form-engine/src/types/computed.types.ts#L1-L32) | Matches PRD contract including recompute mode, caching, and fallbacks.
+| Data source configuration (SWR caching, retries, fallback, transform) | ✅ | [computed.types.ts](../../packages/form-engine/src/types/computed.types.ts#L34-L70) · [DataSourceManager.ts](../../packages/form-engine/src/datasources/DataSourceManager.ts#L14-L198) | Manager implements SWR, retry w/ exponential backoff, transformations, and fallbacks.
+
+## 6. Field Registry & Widgets
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Base widgets (Text, Number, TextArea, Select, RadioGroup, Checkbox, Date, FileUpload, Repeater, Rating, Slider) | ❌ | [field-registry.ts](../../packages/form-engine/src/core/field-registry.ts#L73-L95) | Core widgets exist except Repeater, so coverage is incomplete.
+| Specialized widgets (Currency, Percentage, Phone, Email, Postcode, IBAN, ColorPicker) | ❌ | [field-registry.ts](../../packages/form-engine/src/core/field-registry.ts#L73-L95) · [ui.types.ts](../../packages/form-engine/src/types/ui.types.ts#L31-L58) | Only Currency/Phone/Email exist; Percentage, Postcode, IBAN, ColorPicker, and Repeater components are missing.
+| Conditional styling via `styleWhen` | ❌ | [ui.types.ts](../../packages/form-engine/src/types/ui.types.ts#L34-L44) | DSL allows style rules, but no renderer logic consumes `styleWhen` (type definition is unused).【e4e54d†L1-L2】
+
+## 7. Validation, Errors, Accessibility
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| AJV setup with custom formats/keywords (postcode, currency, phone, IBAN, async validators) | ✅ | [ajv-setup.ts](../../packages/form-engine/src/validation/ajv-setup.ts#L1-L200) | Implements PRD formats, `requiredWhen`, `crossField`, async endpoint checks, and performance tracking.
+| Per-step validation ≤50 ms with RHF resolver | ✅ | [FormRenderer.tsx](../../packages/form-engine/src/renderer/FormRenderer.tsx#L63-L126) | Resolver scopes AJV per visible step and caches schema references.
+| Error recovery offering draft save on repeated failures with exponential backoff | ❌ | [FormRenderer.tsx](../../packages/form-engine/src/renderer/FormRenderer.tsx#L186-L217) | Renderer surfaces validation errors but lacks submission retry/backoff pipeline; only data source fetchers retry.【0ed217†L1-L2】
+| Accessibility (labels, aria, error summaries) | ✅ | [withFieldWrapper.tsx](../../packages/form-engine/src/components/fields/withFieldWrapper.tsx#L8-L65) · [FormRenderer.tsx](../../packages/form-engine/src/renderer/FormRenderer.tsx#L156-L205) | Wrapper wires aria attributes, and renderer aggregates step error summaries.
+
+## 8. Persistence & Security
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Autosave (500 ms debounce), compression, encryption for `sensitivity: high` | ✅ | [PersistenceManager.ts](../../packages/form-engine/src/persistence/PersistenceManager.ts#L69-L320) | Debounced queue, AES encryption, gzip/base64 compression, TTL cleanup implemented.
+| Draft recovery & conflict resolution (last-write-wins with merge metadata) | ✅ | [DraftRecovery.tsx](../../packages/form-engine/src/persistence/DraftRecovery.tsx#L1-L87) · [ConflictResolver.ts](../../packages/form-engine/src/persistence/ConflictResolver.ts#L1-L80) | UI prompts recovery and resolver flags conflicting fields for manual review.
+| Session timeout enforcement (30 min default, configurable) | ❌ | [schema.types.ts](../../packages/form-engine/src/types/schema.types.ts#L13-L24) | Metadata exposes `timeout`, but runtime logic never applies countdown or expiry.【35111c†L1-L1】
+| CSP with nonce for inline scripts | ❌ | Search shows no CSP configuration or headers in Next config.【c6fba3†L1-L1】
+
+## 9. Performance & Observability
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Performance budgets (step ≤150 ms, validation ≤50 ms, bundle ≤150 KB, completion ≤5 min) | ✅ | [PerformanceBudget.ts](../../packages/form-engine/src/performance/PerformanceBudget.ts#L9-L152) | Default budgets mirror PRD values and hook into Web Vitals + monitoring endpoint.
+| 1 % production performance sampling | ❌ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L15-L171) | Sampling defaults to 100%; no production override wired to PRD’s 1 % target.
+| Automatic degradation for slow devices | ❌ | – | No logic toggles computed fields/animations when budgets fail.
+
+## 10. Analytics
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Core analytics events capture formId, schemaVersion, sessionId, stepId, fieldName | ✅ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L53-L132) | Event payload aligns with contract and updates session metrics.
+| Analytics payload sanitization (PII redaction) | ✅ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L207-L232) | Sanitizes sensitive keys before buffering events.
+| Versioned analytics contract (`v` field) and payloadVersion inclusion | ❌ | [analytics.types.ts](../../packages/form-engine/src/types/analytics.types.ts#L1-L33) | Event schema lacks `v`/`payloadVersion`, so downstream versioning is absent.
+| Funnel abandonment & error tracking | ✅ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L173-L204) | Session metrics record step completion, abandonment, validation attempts, and errors.
+
+## 11. Testing Strategy
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Path generator for representative/exhaustive flows | ✅ | [PathGenerator.ts](../../packages/form-engine/src/testing/PathGenerator.ts#L1-L200) | Generates default, boundary, and error paths matching PRD testing guidance.
+| Chaos / load / synthetic monitoring hooks | ❌ | – | No automated chaos/load scripts or synthetic monitors present in repo.
+
+## 12–13. Migration & Rollout
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Zod → unified schema converter with validation and stats | ✅ | [ZodMigrator.ts](../../packages/form-engine/src/migration/ZodMigrator.ts#L1-L199) | Produces unified schemas, warnings, optional validation, and test scaffolding.
+| React component migrator & structure analysis | ✅ | [ReactFormMigrator.ts](../../packages/form-engine/src/migration/ReactFormMigrator.ts#L1-L199) | Parses components, extracts fields/validations, and builds draft schemas.
+| Feature flags per schema version, staged rollout (5% → 25% → 100%) | ❌ | – | No flag service integration or staged rollout automation exists in codebase.
+| Schema Review Board establishment & decision log | ❌ | [PRD mention only](./form-builder-PRD-v2.2.md#appendix-a-schema-review-board-charter) | No `decisions/schemas/` records or tooling to enforce board approvals.【be67b8†L1-L6】
+
+## 14–16. KPIs, Risks, Open Questions
+| Requirement | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| KPI monitoring hooks (error rate, performance dashboards) | ❌ | – | Telemetry endpoints exist, but no KPI aggregation/alerting implemented.
+| Risk mitigations (schema proliferation, perf degradation, migration errors, CSP) | ❌ | – | Lacking governance artifacts, automatic performance degradation, rollback automation, or CSP hardening.
+| Open questions tracked | ❌ | – | No issue log or documentation addresses unresolved questions from PRD Section 16.
+
