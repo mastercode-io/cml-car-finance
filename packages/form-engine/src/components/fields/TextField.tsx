@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Controller, type FieldValues } from 'react-hook-form';
 
+import { Input } from '../ui/input';
 import { cn } from '../../utils/cn';
 
 import type { FocusEvt, InputChange } from '../../types/events';
@@ -13,7 +14,7 @@ export type TextFieldProps<TFieldValues extends FieldValues = FieldValues> = Fie
   string | null
 >;
 
-export const TextField: React.FC<TextFieldProps> = props => {
+export const TextField: React.FC<TextFieldProps> = (props) => {
   const {
     id,
     name,
@@ -32,24 +33,35 @@ export const TextField: React.FC<TextFieldProps> = props => {
     ariaDescribedBy,
     ariaInvalid,
     ariaRequired,
-    componentProps
+    componentProps,
   } = props;
 
   const fieldId = id ?? name;
-  const resolvedComponentProps = (componentProps ?? {}) as React.InputHTMLAttributes<HTMLInputElement>;
+  const resolvedComponentProps = (componentProps ?? {}) as React.ComponentProps<typeof Input>;
+  const {
+    className: componentClassName,
+    onChange: componentOnChange,
+    onBlur: componentOnBlur,
+    onFocus: componentOnFocus,
+    defaultValue: componentDefaultValue,
+    placeholder: componentPlaceholder,
+    disabled: componentDisabled,
+    readOnly: componentReadOnly,
+    ...restComponentProps
+  } = resolvedComponentProps;
 
   const handleBlur = React.useCallback(
     (event: FocusEvt) => {
       onBlur?.(event);
     },
-    [onBlur]
+    [onBlur],
   );
 
   const handleFocus = React.useCallback(
     (event: FocusEvt) => {
       onFocus?.(event);
     },
-    [onFocus]
+    [onFocus],
   );
 
   const handleChange = React.useCallback(
@@ -58,7 +70,7 @@ export const TextField: React.FC<TextFieldProps> = props => {
       onChange?.(nextValue);
       onValueChange?.(nextValue);
     },
-    [onChange, onValueChange]
+    [onChange, onValueChange],
   );
 
   if (control) {
@@ -69,32 +81,38 @@ export const TextField: React.FC<TextFieldProps> = props => {
         rules={rules}
         defaultValue={(defaultValue as string | undefined) ?? ''}
         render={({ field, fieldState }) => (
-          <input
-            {...resolvedComponentProps}
-            {...field}
+          <Input
+            {...restComponentProps}
             id={fieldId}
             type="text"
+            name={name}
             value={(field.value as string | undefined) ?? ''}
-            placeholder={placeholder}
-            disabled={disabled}
-            readOnly={readOnly}
+            placeholder={placeholder ?? componentPlaceholder}
+            disabled={disabled ?? componentDisabled}
+            readOnly={readOnly ?? componentReadOnly}
             aria-describedby={ariaDescribedBy}
             aria-invalid={ariaInvalid ?? Boolean(fieldState.error)}
             aria-required={ariaRequired}
             className={cn(
-              'block w-full rounded-md border px-3 py-2 text-sm',
+              componentClassName,
               className,
-              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive'
+              (ariaInvalid ?? Boolean(fieldState.error)) && 'border-destructive',
             )}
             onChange={(event: InputChange) => {
+              componentOnChange?.(event);
               field.onChange(event.target.value);
               handleChange(event);
             }}
-            onBlur={(event: FocusEvt) => {
+            onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnBlur?.(event);
               field.onBlur();
-              handleBlur(event);
+              handleBlur(event as FocusEvt);
             }}
-            onFocus={handleFocus}
+            onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+              componentOnFocus?.(event);
+              handleFocus(event as FocusEvt);
+            }}
+            ref={field.ref}
           />
         )}
       />
@@ -102,30 +120,40 @@ export const TextField: React.FC<TextFieldProps> = props => {
   }
 
   const inputValue = value === null || value === undefined ? undefined : (value as string);
-  const defaultInputValue = inputValue === undefined
-    ? (defaultValue === null || defaultValue === undefined
+  const defaultInputValue =
+    inputValue === undefined
+      ? defaultValue === null || defaultValue === undefined
         ? undefined
-        : (defaultValue as string))
-    : undefined;
+        : (defaultValue as string)
+      : undefined;
 
   return (
-    <input
-      {...resolvedComponentProps}
+    <Input
+      {...restComponentProps}
       id={fieldId}
       name={name}
       type="text"
-      value={inputValue}
-      defaultValue={defaultInputValue}
-      placeholder={placeholder}
-      disabled={disabled}
-      readOnly={readOnly}
+      value={inputValue ?? undefined}
+      defaultValue={defaultInputValue ?? (componentDefaultValue as string | undefined)}
+      placeholder={placeholder ?? componentPlaceholder}
+      disabled={disabled ?? componentDisabled}
+      readOnly={readOnly ?? componentReadOnly}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       aria-required={ariaRequired}
-      className={cn('block w-full rounded-md border px-3 py-2 text-sm', className, ariaInvalid && 'border-destructive')}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      onFocus={handleFocus}
+      className={cn(componentClassName, className, ariaInvalid && 'border-destructive')}
+      onChange={(event: InputChange) => {
+        componentOnChange?.(event);
+        handleChange(event);
+      }}
+      onBlur={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnBlur?.(event);
+        handleBlur(event as FocusEvt);
+      }}
+      onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
+        componentOnFocus?.(event);
+        handleFocus(event as FocusEvt);
+      }}
     />
   );
 };
