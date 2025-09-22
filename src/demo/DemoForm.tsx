@@ -10,6 +10,7 @@ import {
   PersistenceManager,
   type DraftData,
   useFormAnalytics,
+  DEFAULT_PAYLOAD_VERSION,
 } from '@form-engine/index';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -156,13 +157,13 @@ export const DemoForm = () => {
 
   const analytics = useFormAnalytics(demoFormSchema.$id, demoFormSchema.version, {
     enabled: true,
-    sampling: 1,
     sensitive: true,
     performanceBudgets: {
       stepTransition: 150,
       validation: 60,
       initialLoad: 400,
     },
+    payloadVersion: DEFAULT_PAYLOAD_VERSION,
   });
 
   useEffect(() => {

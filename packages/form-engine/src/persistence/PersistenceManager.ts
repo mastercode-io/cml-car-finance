@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import localforage from 'localforage';
 import CryptoJS from 'crypto-js';
 
+export const DEFAULT_PAYLOAD_VERSION = '1.0.0';
+
 export interface PersistenceConfig {
   formId: string;
   schemaVersion: string;
@@ -10,6 +12,7 @@ export interface PersistenceConfig {
   ttlDays?: number;
   sensitivity?: 'low' | 'medium' | 'high';
   allowAutosave?: boolean;
+  payloadVersion?: string;
 }
 
 export interface SaveOptions {
@@ -55,10 +58,12 @@ export class PersistenceManager {
   private saveTimer: NodeJS.Timeout | null = null;
   private encryptionKey: string | null;
   private cleanupTimer: NodeJS.Timeout | null = null;
+  private payloadVersion: string;
 
   constructor(config: PersistenceConfig) {
     this.config = config;
     this.encryptionKey = config.encryptionKey || null;
+    this.payloadVersion = config.payloadVersion ?? DEFAULT_PAYLOAD_VERSION;
     this.store = localforage.createInstance({
       name: 'FormBuilder',
       storeName: 'drafts',
@@ -158,6 +163,10 @@ export class PersistenceManager {
     await this.flushQueue();
   }
 
+  getPayloadVersion(): string {
+    return this.payloadVersion;
+  }
+
   private async initialize(): Promise<void> {
     await this.store.ready();
     await this.cleanExpiredDrafts();
@@ -202,7 +211,7 @@ export class PersistenceManager {
     const draft: DraftData = {
       formId: this.config.formId,
       schemaVersion: this.config.schemaVersion,
-      payloadVersion: '1.0.0',
+      payloadVersion: this.payloadVersion,
       data,
       currentStep: payload.currentStep,
       completedSteps: payload.completedSteps,

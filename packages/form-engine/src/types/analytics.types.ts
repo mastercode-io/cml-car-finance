@@ -1,4 +1,6 @@
 export interface AnalyticsEvent {
+  v: number;
+  payloadVersion: string;
   name: string;
   category?: 'form' | 'field' | 'navigation' | 'performance' | 'error';
   data: Record<string, any>;
@@ -26,6 +28,10 @@ export interface FormAnalyticsConfig {
   bufferSize?: number;
   flushInterval?: number;
   performanceBudgets?: PerformanceBudgets;
+  formId?: string;
+  schemaVersion?: string;
+  payloadVersion?: string;
+  eventVersion?: number;
 }
 
 export interface PerformanceBudgets {
