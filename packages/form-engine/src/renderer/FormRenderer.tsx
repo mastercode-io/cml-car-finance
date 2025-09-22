@@ -22,6 +22,19 @@ import {
   scrollToFirstError,
 } from './utils';
 
+const formatDuration = (ms: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
+  }
+
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
 export interface FormRendererProps {
   schema: UnifiedFormSchema;
   initialData?: Record<string, unknown>;
@@ -66,6 +79,26 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     type: 'info' | 'error';
     message: string;
   }>(null);
+  const [sessionActionPending, setSessionActionPending] = React.useState<
+    null | 'restart' | 'restore'
+  >(null);
+
+  const sessionTimeoutMs = React.useMemo(() => {
+    const configuredTimeout = schema.metadata?.timeout;
+    const minutes = typeof configuredTimeout === 'number' ? configuredTimeout : 30;
+    if (!minutes || minutes <= 0) {
+      return 0;
+    }
+    return minutes * 60 * 1000;
+  }, [schema.metadata?.timeout]);
+
+  const [sessionExpiresAt, setSessionExpiresAt] = React.useState<number | null>(() =>
+    sessionTimeoutMs > 0 ? Date.now() + sessionTimeoutMs : null,
+  );
+  const [timeRemainingMs, setTimeRemainingMs] = React.useState<number | null>(() =>
+    sessionTimeoutMs > 0 ? sessionTimeoutMs : null,
+  );
+  const [isSessionExpired, setSessionExpired] = React.useState(false);
 
   const resolver = React.useCallback(
     async (values: Record<string, unknown>, context: any, options: any) => {
@@ -100,6 +133,49 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
       keepDefaultValues: false,
     });
   }, [reset, resolvedInitialData]);
+
+  React.useEffect(() => {
+    if (sessionTimeoutMs <= 0) {
+      setSessionExpiresAt(null);
+      setTimeRemainingMs(null);
+      setSessionExpired(false);
+      return;
+    }
+
+    setSessionExpiresAt(Date.now() + sessionTimeoutMs);
+    setTimeRemainingMs(sessionTimeoutMs);
+    setSessionExpired(false);
+  }, [schema.$id, sessionTimeoutMs]);
+
+  React.useEffect(() => {
+    if (!sessionExpiresAt || isSessionExpired || typeof window === 'undefined') {
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = sessionExpiresAt - Date.now();
+      if (remaining <= 0) {
+        setSessionExpired(true);
+        setTimeRemainingMs(0);
+        setSubmissionFeedback({
+          type: 'error',
+          message:
+            'Your session expired. Start a new session or restore a saved draft to continue.',
+        });
+        setSubmitting(false);
+        return;
+      }
+      setTimeRemainingMs(remaining);
+    };
+
+    updateRemaining();
+
+    const intervalId = window.setInterval(updateRemaining, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isSessionExpired, sessionExpiresAt]);
 
   const watchedValues = methods.watch();
 
@@ -360,6 +436,14 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
 
   const handleFormSubmit = React.useCallback(
     async (data: Record<string, unknown>) => {
+      if (isSessionExpired) {
+        setSubmissionFeedback({
+          type: 'error',
+          message: 'Your session expired. Start a new session to submit the form.',
+        });
+        return;
+      }
+
       setSubmitting(true);
       setSubmissionFeedback(null);
       try {
@@ -435,13 +519,14 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
       saveDraftAfterFailure,
       schema.$id,
       schema.version,
+      isSessionExpired,
       validateAllSteps,
       visibleSteps,
     ],
   );
 
   const handleNext = React.useCallback(async () => {
-    if (!currentStepSchema || !currentStepConfig || !currentStepId) {
+    if (isSessionExpired || !currentStepSchema || !currentStepConfig || !currentStepId) {
       return;
     }
     const isValid = await validateCurrentStep();
@@ -482,6 +567,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     currentStepIndex,
     currentStepSchema,
     handleFormSubmit,
+    isSessionExpired,
     methods,
     schema,
     validateCurrentStep,
@@ -489,7 +575,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   ]);
 
   const handlePrevious = React.useCallback(() => {
-    if (!currentStepId) {
+    if (isSessionExpired || !currentStepId) {
       return;
     }
     const previousFromHistory = stepHistory[stepHistory.length - 1];
@@ -504,7 +590,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
       setStepHistory((history) => history.slice(0, -1));
       setCurrentStepIndex(previousIndex);
     }
-  }, [currentStepId, stepHistory, visibleSteps]);
+  }, [currentStepId, isSessionExpired, stepHistory, visibleSteps]);
 
   const focusField = React.useCallback((fieldName: string) => {
     if (typeof document === 'undefined') {
@@ -523,6 +609,158 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
       }
     }
   }, []);
+
+  const warningThresholdMs = React.useMemo(() => {
+    if (!sessionTimeoutMs) {
+      return 0;
+    }
+    return Math.min(sessionTimeoutMs, 5 * 60 * 1000);
+  }, [sessionTimeoutMs]);
+
+  const sessionBanner = React.useMemo(() => {
+    if (!sessionTimeoutMs || timeRemainingMs == null) {
+      return null;
+    }
+
+    if (isSessionExpired) {
+      return {
+        type: 'error' as const,
+        message: 'Your session expired. Start a new session or restore a saved draft to continue.',
+      };
+    }
+
+    const message = `Session expires in ${formatDuration(timeRemainingMs)}.`;
+    if (timeRemainingMs <= warningThresholdMs) {
+      return { type: 'warning' as const, message };
+    }
+
+    return { type: 'info' as const, message };
+  }, [isSessionExpired, sessionTimeoutMs, timeRemainingMs, warningThresholdMs]);
+
+  const handleRestartSession = React.useCallback(async () => {
+    if (!sessionTimeoutMs) {
+      return;
+    }
+
+    setSessionActionPending('restart');
+    try {
+      const manager = await ensurePersistenceManager();
+      if (manager) {
+        try {
+          await manager.deleteDraft();
+        } catch (error) {
+          console.error('Failed to delete draft when restarting session', error);
+        }
+      }
+
+      setCompletedSteps([]);
+      setErrorSteps([]);
+      setStepHistory([]);
+      setCurrentStepIndex(0);
+      visibilityControllerRef.current.clearCache();
+      reset(resolvedInitialData, {
+        keepDefaultValues: false,
+        keepDirty: false,
+        keepErrors: false,
+      });
+
+      const nextExpiry = Date.now() + sessionTimeoutMs;
+      setSessionExpiresAt(nextExpiry);
+      setTimeRemainingMs(sessionTimeoutMs);
+      setSessionExpired(false);
+      setSubmissionFeedback({
+        type: 'info',
+        message: 'Started a new session. You can continue completing the form.',
+      });
+    } catch (error) {
+      console.error('Failed to restart session', error);
+      setSubmissionFeedback({
+        type: 'error',
+        message: 'We could not restart your session. Please reload the page to continue.',
+      });
+    } finally {
+      setSessionActionPending(null);
+    }
+  }, [
+    ensurePersistenceManager,
+    reset,
+    resolvedInitialData,
+    sessionTimeoutMs,
+    setCompletedSteps,
+    setErrorSteps,
+    visibilityControllerRef,
+  ]);
+
+  const handleRestoreSession = React.useCallback(async () => {
+    if (!sessionTimeoutMs) {
+      return;
+    }
+
+    setSessionActionPending('restore');
+    try {
+      const manager = await ensurePersistenceManager();
+      if (!manager) {
+        setSubmissionFeedback({
+          type: 'error',
+          message: 'Saved progress is unavailable. Start a new session to continue.',
+        });
+        return;
+      }
+
+      const draft = await manager.loadDraft();
+      if (!draft) {
+        setSubmissionFeedback({
+          type: 'error',
+          message: 'No saved progress found. Start a new session to continue.',
+        });
+        return;
+      }
+
+      reset((draft.data as Record<string, unknown>) ?? {}, {
+        keepDefaultValues: false,
+        keepDirty: false,
+        keepErrors: false,
+      });
+
+      visibilityControllerRef.current.clearCache();
+      setCompletedSteps(Array.isArray(draft.completedSteps) ? draft.completedSteps : []);
+      setErrorSteps([]);
+      setStepHistory([]);
+      if (draft.currentStep) {
+        const targetIndex = Math.max(
+          schema.steps.findIndex((step) => step.id === draft.currentStep),
+          0,
+        );
+        setCurrentStepIndex(targetIndex >= 0 ? targetIndex : 0);
+      } else {
+        setCurrentStepIndex(0);
+      }
+
+      const nextExpiry = Date.now() + sessionTimeoutMs;
+      setSessionExpiresAt(nextExpiry);
+      setTimeRemainingMs(sessionTimeoutMs);
+      setSessionExpired(false);
+      setSubmissionFeedback({
+        type: 'info',
+        message: 'Restored your saved progress and restarted the session.',
+      });
+    } catch (error) {
+      console.error('Failed to restore session from draft', error);
+      setSubmissionFeedback({
+        type: 'error',
+        message: 'We could not restore your saved progress. Start a new session to continue.',
+      });
+    } finally {
+      setSessionActionPending(null);
+    }
+  }, [
+    ensurePersistenceManager,
+    reset,
+    schema.steps,
+    sessionTimeoutMs,
+    setCompletedSteps,
+    visibilityControllerRef,
+  ]);
 
   if (!currentStepSchema || !currentStepConfig || !visibleSteps.length) {
     return null;
@@ -558,6 +796,44 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
             {submissionFeedback.message}
           </div>
         ) : null}
+        {sessionBanner ? (
+          <div
+            role={sessionBanner.type === 'error' ? 'alert' : 'status'}
+            aria-live={sessionBanner.type === 'error' ? 'assertive' : 'polite'}
+            className={cn(
+              'rounded-md border px-4 py-3 text-sm',
+              sessionBanner.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : sessionBanner.type === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-900',
+            )}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="font-medium">{sessionBanner.message}</p>
+              {isSessionExpired ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void handleRestartSession()}
+                    disabled={sessionActionPending !== null}
+                  >
+                    {sessionActionPending === 'restart' ? 'Restarting…' : 'Start new session'}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-input px-3 py-1.5 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void handleRestoreSession()}
+                    disabled={sessionActionPending !== null}
+                  >
+                    {sessionActionPending === 'restore' ? 'Restoring…' : 'Restore saved draft'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <div className="space-y-6">
           <StepProgress
             steps={visibleSteps.map((stepId, index) => ({
@@ -567,6 +843,9 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
             }))}
             currentStep={currentStepId}
             onStepSelect={(stepId) => {
+              if (isSessionExpired) {
+                return;
+              }
               const targetIndex = visibleSteps.indexOf(stepId);
               if (targetIndex >= 0 && targetIndex <= currentStepIndex) {
                 setCurrentStepIndex(targetIndex);
@@ -637,7 +916,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
                       description={description}
                       helpText={helpText}
                       className={widgetClassName as string | undefined}
-                      disabled={mode === 'view' || disabled}
+                      disabled={mode === 'view' || disabled || isSessionExpired}
                       readOnly={readOnly}
                       required={isRequired}
                       control={methods.control}
@@ -659,10 +938,10 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
               <button
                 type="button"
                 onClick={handlePrevious}
-                disabled={currentStepIndex === 0}
+                disabled={currentStepIndex === 0 || isSessionExpired}
                 className={cn(
                   'rounded-md border border-input px-4 py-2 text-sm font-medium text-foreground transition-colors',
-                  currentStepIndex === 0 && 'opacity-50',
+                  (currentStepIndex === 0 || isSessionExpired) && 'opacity-50',
                 )}
               >
                 Previous
@@ -674,14 +953,14 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
                     type="button"
                     onClick={handleNext}
                     className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isSessionExpired}
                   >
                     Next
                   </button>
                 ) : (
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isSessionExpired}
                     className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {isSubmitting ? 'Submitting…' : 'Submit'}

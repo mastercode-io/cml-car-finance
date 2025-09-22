@@ -6,11 +6,15 @@ import { FormRenderer } from '@form-engine/index';
 
 const saveDraftMock = jest.fn();
 const flushPendingSavesMock = jest.fn();
+const loadDraftMock = jest.fn();
+const deleteDraftMock = jest.fn();
 
 jest.mock('../../src/persistence/PersistenceManager', () => ({
   PersistenceManager: jest.fn().mockImplementation(() => ({
     saveDraft: saveDraftMock,
     flushPendingSaves: flushPendingSavesMock,
+    loadDraft: loadDraftMock,
+    deleteDraft: deleteDraftMock,
   })),
 }));
 
@@ -21,7 +25,13 @@ const { PersistenceManager } = jest.requireMock('../../src/persistence/Persisten
 beforeEach(() => {
   saveDraftMock.mockReset();
   flushPendingSavesMock.mockReset();
+  loadDraftMock.mockReset();
+  deleteDraftMock.mockReset();
   PersistenceManager.mockClear();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 const buildSchema = (): UnifiedFormSchema => ({
@@ -469,5 +479,63 @@ describe('FormRenderer', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('locks controls when the session expires and supports restarting', async () => {
+    jest.useFakeTimers();
+
+    const schema = buildSchema();
+    schema.metadata.timeout = 0.02;
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    expect(await screen.findByText(/session expires in/i)).toBeInTheDocument();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /start new session/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /^next$/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /start new session/i }));
+
+    await waitFor(() => {
+      expect(deleteDraftMock).toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /^next$/i })).not.toBeDisabled();
+      expect(screen.getByText(/started a new session/i)).toBeInTheDocument();
+    });
+  });
+
+  it('restores saved progress after session expiry when a draft exists', async () => {
+    jest.useFakeTimers();
+
+    const schema = buildSchema();
+    schema.metadata.timeout = 0.02;
+
+    loadDraftMock.mockResolvedValueOnce({
+      data: { firstName: 'Saved', lastName: 'User', email: 'saved@example.com' },
+      currentStep: 'contact',
+      completedSteps: ['personal'],
+    });
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    const restoreButton = await screen.findByRole('button', { name: /restore saved draft/i });
+
+    fireEvent.click(restoreButton);
+
+    await waitFor(() => {
+      expect(loadDraftMock).toHaveBeenCalled();
+      expect(screen.getByText(/restored your saved progress/i)).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /email/i })).toHaveValue('saved@example.com');
+    });
   });
 });

@@ -8,6 +8,7 @@ export const demoFormSchema: UnifiedFormSchema = {
     description:
       'Comprehensive job application demonstrating validation, branching, and persistence.',
     sensitivity: 'high',
+    timeout: 30,
     allowAutosave: true,
     retainHidden: false,
     requiresAudit: true,
