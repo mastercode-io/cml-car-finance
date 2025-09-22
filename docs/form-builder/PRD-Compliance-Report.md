@@ -47,7 +47,7 @@
 | Requirement | Status | Evidence | Notes |
 | --- | --- | --- | --- |
 | Performance budgets (step ≤150 ms, validation ≤50 ms, bundle ≤150 KB, completion ≤5 min) | ✅ | [PerformanceBudget.ts](../../packages/form-engine/src/performance/PerformanceBudget.ts#L9-L152) | Default budgets mirror PRD values and hook into Web Vitals + monitoring endpoint.
-| 1 % production performance sampling | ❌ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L15-L171) | Sampling defaults to 100%; no production override wired to PRD’s 1 % target.
+| 1 % production performance sampling | ✅ | [FormAnalytics.ts](../../packages/form-engine/src/analytics/FormAnalytics.ts#L15-L204) | Defaults to 1 % in production with env overrides via `NEXT_PUBLIC_FORM_ANALYTICS_SAMPLING`.
 | Automatic degradation for slow devices | ❌ | – | No logic toggles computed fields/animations when budgets fail.
 
 ## 10. Analytics
