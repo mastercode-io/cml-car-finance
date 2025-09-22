@@ -1,12 +1,7 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
-import type {
-  CompiledSchema,
-  JSONSchema,
-  UnifiedFormSchema,
-  ValidationResult
-} from '../types';
+import type { CompiledSchema, JSONSchema, UnifiedFormSchema, ValidationResult } from '../types';
 
 const UNIFIED_SCHEMA_META: JSONSchema = {
   $id: 'https://schemas.cml.local/unified-form-schema.json',
@@ -17,7 +12,7 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
     version: { type: 'string' },
     extends: {
       type: 'array',
-      items: { type: 'string' }
+      items: { type: 'string' },
     },
     metadata: {
       type: 'object',
@@ -27,21 +22,21 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
         description: { type: 'string' },
         sensitivity: {
           type: 'string',
-          enum: ['low', 'medium', 'high']
+          enum: ['low', 'medium', 'high'],
         },
         retainHidden: { type: 'boolean' },
         allowAutosave: { type: 'boolean' },
         timeout: { type: 'number' },
         tags: {
           type: 'array',
-          items: { type: 'string' }
+          items: { type: 'string' },
         },
         owner: { type: 'string' },
-        lastModified: { type: 'string' }
-      }
+        lastModified: { type: 'string' },
+      },
     },
     definitions: {
-      type: 'object'
+      type: 'object',
     },
     steps: {
       type: 'array',
@@ -62,13 +57,13 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
                 type: 'object',
                 required: ['$ref'],
                 properties: {
-                  $ref: { type: 'string' }
-                }
-              }
-            ]
-          }
-        }
-      }
+                  $ref: { type: 'string' },
+                },
+              },
+            ],
+          },
+        },
+      },
     },
     transitions: {
       type: 'array',
@@ -79,9 +74,9 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
           from: { type: 'string' },
           to: { type: 'string' },
           when: { type: 'object' },
-          default: { type: 'boolean' }
-        }
-      }
+          default: { type: 'boolean' },
+        },
+      },
     },
     ui: { type: 'object' },
     computed: {
@@ -95,16 +90,16 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
           dependsOn: {
             type: 'array',
             minItems: 1,
-            items: { type: 'string' }
-          }
-        }
-      }
+            items: { type: 'string' },
+          },
+        },
+      },
     },
     dataSources: {
-      type: 'object'
-    }
+      type: 'object',
+    },
   },
-  additionalProperties: true
+  additionalProperties: true,
 };
 
 export class SchemaValidator {
@@ -115,7 +110,7 @@ export class SchemaValidator {
       allErrors: true,
       verbose: true,
       strict: true,
-      validateFormats: true
+      validateFormats: true,
     });
 
     addFormats(this.ajv);
@@ -127,24 +122,31 @@ export class SchemaValidator {
   private registerCustomFormats(): void {
     this.ajv.addFormat('phone', {
       type: 'string',
-      validate: (data: string) => /^\+?[1-9]\d{1,14}$/.test(data)
+      validate: (data: string) => /^\+?[1-9]\d{1,14}$/.test(data),
+    });
+
+    const postcodeValidator = (data: string) =>
+      /^[A-Z]{1,2}[0-9]{1,2}[A-Z]?\s?[0-9][A-Z]{2}$/i.test(data.trim());
+
+    this.ajv.addFormat('gb-postcode', {
+      type: 'string',
+      validate: postcodeValidator,
     });
 
     this.ajv.addFormat('postcode', {
       type: 'string',
-      validate: (data: string) =>
-        /^[A-Z]{1,2}[0-9]{1,2}[A-Z]?\s?[0-9][A-Z]{2}$/i.test(data)
+      validate: postcodeValidator,
     });
 
     this.ajv.addFormat('iban', {
       type: 'string',
       validate: (data: string) =>
-        /^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$/.test(data)
+        /^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$/.test(data),
     });
 
     this.ajv.addFormat('currency', {
       type: 'string',
-      validate: (data: string) => /^\d+(\.\d{1,2})?$/.test(data)
+      validate: (data: string) => /^\d+(\.\d{1,2})?$/.test(data),
     });
   }
 
@@ -163,9 +165,7 @@ export class SchemaValidator {
           };
           if (!field) return true;
           if (data[field] === equals) {
-            const required: string[] = Array.isArray(schema.requires)
-              ? schema.requires
-              : [];
+            const required: string[] = Array.isArray(schema.requires) ? schema.requires : [];
             for (const requiredField of required) {
               if (
                 data[requiredField] === undefined ||
@@ -178,8 +178,8 @@ export class SchemaValidator {
                     schemaPath: '#/requiredWhen',
                     keyword: 'requiredWhen',
                     params: { missingProperty: requiredField },
-                    message: `${requiredField} is required`
-                  }
+                    message: `${requiredField} is required`,
+                  },
                 ];
                 return false;
               }
@@ -189,7 +189,7 @@ export class SchemaValidator {
         };
 
         return validator;
-      }
+      },
     });
   }
 
@@ -202,11 +202,12 @@ export class SchemaValidator {
         path: error.instancePath,
         message: error.message || 'Schema validation error',
         keyword: error.keyword,
-        property: error.params && 'missingProperty' in error.params
-          ? String(error.params.missingProperty)
-          : undefined,
-        params: error.params as Record<string, unknown>
-      }))
+        property:
+          error.params && 'missingProperty' in error.params
+            ? String(error.params.missingProperty)
+            : undefined,
+        params: error.params as Record<string, unknown>,
+      })),
     };
   }
 
