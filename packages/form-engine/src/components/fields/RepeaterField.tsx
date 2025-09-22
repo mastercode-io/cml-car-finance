@@ -82,6 +82,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
 
   // A11y live region (polite)
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
+  const listRef = React.useRef<HTMLUListElement | null>(null);
   const clearTimerRef = React.useRef<number | undefined>(undefined);
   const announce = React.useCallback((message: string) => {
     const region = liveRegionRef.current;
@@ -146,11 +147,57 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
     !disabled && !readOnly && (typeof minItems !== 'number' || fields.length > minItems);
   const canReorder = !disabled && !readOnly && fields.length > 1;
 
+  const focusItemControl = React.useCallback((itemIndex: number) => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.querySelector<HTMLElement>(`[data-repeater-index="${itemIndex}"]`);
+    if (!item) return;
+
+    const primarySelectors = [
+      'input:not([type="hidden"]):not([disabled]):not([tabindex="-1"])',
+      'select:not([disabled]):not([tabindex="-1"])',
+      'textarea:not([disabled]):not([tabindex="-1"])',
+      '[role="textbox"]:not([aria-hidden="true"]):not([tabindex="-1"])',
+    ];
+    const fallbackSelectors = [
+      'button:not([disabled]):not([tabindex="-1"])',
+      '[tabindex]:not([tabindex="-1"]):not([aria-hidden="true"])',
+      '[contenteditable="true"]',
+    ];
+
+    const findFocusable = (selectors: string[]): HTMLElement | null => {
+      for (const selector of selectors) {
+        const candidate = item.querySelector<HTMLElement>(selector);
+        if (candidate) return candidate;
+      }
+      return null;
+    };
+
+    const focusable = findFocusable(primarySelectors) ?? findFocusable(fallbackSelectors);
+    focusable?.focus();
+  }, []);
+
   const handleAddItem = React.useCallback(() => {
     if (!canAdd) return;
+    const nextIndex = fields.length;
     append(itemDefaults as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
     announce(`${itemLabel} ${fields.length + 1} added.`);
-  }, [append, canAdd, fields.length, itemDefaults, itemLabel, announce]);
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          focusItemControl(nextIndex);
+        });
+      });
+    }
+  }, [
+    announce,
+    append,
+    canAdd,
+    fields.length,
+    focusItemControl,
+    itemDefaults,
+    itemLabel,
+  ]);
 
   const handleRemoveItem = React.useCallback(
     (index: number) => {
@@ -196,13 +243,14 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
           {emptyStateText}
         </div>
       ) : (
-        <ul className="space-y-4" role="list">
+        <ul className="space-y-4" role="list" ref={listRef}>
           {fields.map((field: FieldArrayWithId<TFieldValues, ArrayPath<TFieldValues>>, index) => {
             const itemNumber = index + 1;
             return (
               <li
                 key={field.id}
                 className="rounded-md border border-border bg-muted/10 p-4 shadow-sm"
+                data-repeater-index={index}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="text-sm font-medium text-foreground">

@@ -30,6 +30,15 @@ describe('PostcodeField', () => {
     expect(input).toHaveValue('SW1A1AA');
   });
 
+  it('formats the legacy GIR 0AA postcode correctly', () => {
+    render(<PostcodeField name="postcode" />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'gir0aa' } });
+
+    expect(input).toHaveValue('GIR 0AA');
+  });
+
   it('works with react-hook-form control and submits formatted values', async () => {
     const handleSubmit = jest.fn();
 

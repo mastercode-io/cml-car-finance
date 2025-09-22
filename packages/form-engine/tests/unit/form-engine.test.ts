@@ -206,8 +206,8 @@ describe('ValidationEngine', () => {
     };
 
     const success = await engine.validate(schema, {
-      postcode: 'SW1A 1AA',
-      legacyPostcode: 'EC1A 1BB',
+      postcode: 'GIR 0AA',
+      legacyPostcode: 'GIR 0AA',
     });
     const failure = await engine.validate(schema, {
       postcode: 'INVALID',
