@@ -10,6 +10,7 @@ import { VisibilityController } from '../rules/visibility-controller';
 import { ValidationEngine } from '../validation/ajv-setup';
 import { createAjvResolver } from '../validation/rhf-resolver';
 import { cn } from '../utils/cn';
+import type { PersistenceManager } from '../persistence/PersistenceManager';
 
 import { ErrorSummary } from './ErrorSummary';
 import { StepProgress } from './StepProgress';
@@ -53,12 +54,18 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   const visibilityControllerRef = React.useRef(new VisibilityController());
   const transitionEngineRef = React.useRef(new TransitionEngine());
   const currentStepSchemaRef = React.useRef<JSONSchema | undefined>(undefined);
+  const persistenceRef = React.useRef<PersistenceManager | null>(null);
+  const persistencePromiseRef = React.useRef<Promise<PersistenceManager | null> | null>(null);
 
   const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
   const [stepHistory, setStepHistory] = React.useState<string[]>([]);
   const [completedSteps, setCompletedSteps] = React.useState<string[]>([]);
   const [errorSteps, setErrorSteps] = React.useState<string[]>([]);
   const [isSubmitting, setSubmitting] = React.useState(false);
+  const [submissionFeedback, setSubmissionFeedback] = React.useState<null | {
+    type: 'info' | 'error';
+    message: string;
+  }>(null);
 
   const resolver = React.useCallback(
     async (values: Record<string, unknown>, context: any, options: any) => {
@@ -187,6 +194,47 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
 
   const errorStepSet = React.useMemo(() => new Set(errorSteps), [errorSteps]);
 
+  const ensurePersistenceManager = React.useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    if (persistenceRef.current) {
+      return persistenceRef.current;
+    }
+
+    if (!persistencePromiseRef.current) {
+      persistencePromiseRef.current = import('../persistence/PersistenceManager')
+        .then(({ PersistenceManager: PersistenceManagerModule }) => {
+          const manager = new PersistenceManagerModule({
+            formId: schema.$id,
+            schemaVersion: schema.version,
+            allowAutosave: schema.metadata.allowAutosave !== false,
+            sensitivity: schema.metadata.sensitivity,
+          });
+          persistenceRef.current = manager;
+          return manager;
+        })
+        .catch((error) => {
+          console.error('Failed to initialize persistence manager', error);
+          return null;
+        });
+    }
+
+    const manager = await persistencePromiseRef.current;
+    if (!manager) {
+      persistencePromiseRef.current = null;
+    }
+    return manager;
+  }, [schema.$id, schema.metadata.allowAutosave, schema.metadata.sensitivity, schema.version]);
+
+  React.useEffect(() => {
+    return () => {
+      persistenceRef.current = null;
+      persistencePromiseRef.current = null;
+    };
+  }, []);
+
   const applyValidationErrors = React.useCallback(
     (errors: ValidationError[]) => {
       methods.clearErrors();
@@ -246,9 +294,74 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     [applyValidationErrors, clearStepError, markStepError, schema, visibleSteps],
   );
 
+  const saveDraftAfterFailure = React.useCallback(
+    async (values: Record<string, unknown>) => {
+      const manager = await ensurePersistenceManager();
+      if (!manager) {
+        return false;
+      }
+
+      const stepId =
+        currentStepId ??
+        visibleSteps[currentStepIndex] ??
+        visibleSteps[visibleSteps.length - 1] ??
+        schema.steps[0]?.id ??
+        'root';
+
+      try {
+        await manager.saveDraft(values, stepId, completedSteps, {
+          manual: true,
+          immediate: true,
+        });
+        await manager.flushPendingSaves();
+        return true;
+      } catch (error) {
+        console.error('Failed to persist draft after submission failure', error);
+        return false;
+      }
+    },
+    [
+      completedSteps,
+      currentStepId,
+      currentStepIndex,
+      ensurePersistenceManager,
+      schema.steps,
+      visibleSteps,
+    ],
+  );
+
+  const getErrorStatus = React.useCallback((error: unknown): number | undefined => {
+    if (!error || typeof error !== 'object') {
+      return undefined;
+    }
+
+    const withStatus = error as {
+      status?: number;
+      response?: { status?: number };
+      cause?: unknown;
+    };
+    if (typeof withStatus.status === 'number') {
+      return withStatus.status;
+    }
+    if (withStatus.response && typeof withStatus.response === 'object') {
+      const responseStatus = (withStatus.response as { status?: number }).status;
+      if (typeof responseStatus === 'number') {
+        return responseStatus;
+      }
+    }
+    if (withStatus.cause && typeof withStatus.cause === 'object') {
+      const causeStatus = (withStatus.cause as { status?: number }).status;
+      if (typeof causeStatus === 'number') {
+        return causeStatus;
+      }
+    }
+    return undefined;
+  }, []);
+
   const handleFormSubmit = React.useCallback(
     async (data: Record<string, unknown>) => {
       setSubmitting(true);
+      setSubmissionFeedback(null);
       try {
         const { valid, failedStep } = await validateAllSteps(data);
         if (!valid) {
@@ -273,16 +386,53 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
           },
         };
 
-        await onSubmit(submissionData);
-        setCompletedSteps((prev) => Array.from(new Set([...prev, ...visibleSteps])));
+        const maxAttempts = 3;
+        const baseDelay = 500;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            await onSubmit(submissionData);
+            setCompletedSteps((prev) => Array.from(new Set([...prev, ...visibleSteps])));
+            setSubmissionFeedback(null);
+            return;
+          } catch (error) {
+            const status = getErrorStatus(error);
+            const retryable =
+              typeof status === 'number'
+                ? status === 429 || (status >= 500 && status < 600)
+                : false;
+
+            if (attempt < maxAttempts && retryable) {
+              setSubmissionFeedback({
+                type: 'info',
+                message: `Submission failed (attempt ${attempt} of ${maxAttempts}). Retrying…`,
+              });
+              const delay = baseDelay * 2 ** (attempt - 1);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              continue;
+            }
+
+            const draftSaved = await saveDraftAfterFailure(data);
+            setSubmissionFeedback({
+              type: 'error',
+              message: draftSaved
+                ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
+                : 'We were unable to submit your form. Please try again shortly.',
+            });
+            console.error('Form submission failed', error);
+            return;
+          }
+        }
       } finally {
         setSubmitting(false);
       }
     },
     [
+      getErrorStatus,
       methods.formState.errors,
       onSubmit,
       onValidationError,
+      saveDraftAfterFailure,
       schema.$id,
       schema.version,
       validateAllSteps,
@@ -394,6 +544,20 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   return (
     <FormProvider {...methods}>
       <form className={className} onSubmit={methods.handleSubmit(handleFormSubmit)} noValidate>
+        {submissionFeedback ? (
+          <div
+            role={submissionFeedback.type === 'error' ? 'alert' : 'status'}
+            aria-live={submissionFeedback.type === 'error' ? 'assertive' : 'polite'}
+            className={cn(
+              'rounded-md border px-4 py-3 text-sm',
+              submissionFeedback.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-900'
+                : 'border-blue-200 bg-blue-50 text-blue-900',
+            )}
+          >
+            {submissionFeedback.message}
+          </div>
+        ) : null}
         <div className="space-y-6">
           <StepProgress
             steps={visibleSteps.map((stepId, index) => ({

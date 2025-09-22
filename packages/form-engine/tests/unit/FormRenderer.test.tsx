@@ -1,8 +1,28 @@
 import * as React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { UnifiedFormSchema } from '@form-engine/types';
 import { FormRenderer } from '@form-engine/index';
+
+const saveDraftMock = jest.fn();
+const flushPendingSavesMock = jest.fn();
+
+jest.mock('../../src/persistence/PersistenceManager', () => ({
+  PersistenceManager: jest.fn().mockImplementation(() => ({
+    saveDraft: saveDraftMock,
+    flushPendingSaves: flushPendingSavesMock,
+  })),
+}));
+
+const { PersistenceManager } = jest.requireMock('../../src/persistence/PersistenceManager') as {
+  PersistenceManager: jest.Mock;
+};
+
+beforeEach(() => {
+  saveDraftMock.mockReset();
+  flushPendingSavesMock.mockReset();
+  PersistenceManager.mockClear();
+});
 
 const buildSchema = (): UnifiedFormSchema => ({
   $id: 'test-form',
@@ -317,5 +337,137 @@ describe('FormRenderer', () => {
         postcode: 'SW1A 1AA',
       }),
     );
+  });
+
+  it('retries submission with exponential backoff on retryable errors', async () => {
+    jest.useFakeTimers();
+    try {
+      const schema = buildSchema();
+      const onSubmit = jest
+        .fn()
+        .mockRejectedValueOnce({ status: 500 })
+        .mockRejectedValueOnce({ response: { status: 429 } })
+        .mockResolvedValue(undefined);
+
+      render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Retry' },
+      });
+      fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+        target: { value: 'Tester' },
+      });
+
+      fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+      await waitFor(() => {
+        fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+          target: { value: 'retry@example.com' },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+
+      expect(
+        screen.getByText(/submission failed \(attempt 1 of 3\)\. retrying/i),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(2);
+      });
+
+      expect(
+        screen.getByText(/submission failed \(attempt 2 of 3\)\. retrying/i),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(3);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText(/retrying/i)).not.toBeInTheDocument();
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('saves a draft and surfaces a message after exhausting retries', async () => {
+    jest.useFakeTimers();
+    try {
+      const schema = buildSchema();
+      const onSubmit = jest.fn().mockRejectedValue({ status: 500 });
+
+      render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Draft' },
+      });
+      fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+        target: { value: 'Saver' },
+      });
+
+      fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+      await waitFor(() => {
+        fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+          target: { value: 'draft@example.com' },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(2);
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+      });
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(3);
+      });
+
+      await waitFor(() => {
+        expect(saveDraftMock).toHaveBeenCalledTimes(1);
+        expect(flushPendingSavesMock).toHaveBeenCalledTimes(1);
+      });
+
+      const [, , , options] = saveDraftMock.mock.calls[0];
+      expect(options).toMatchObject({ manual: true, immediate: true });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/your progress was saved so you can try again shortly/i),
+        ).toBeInTheDocument();
+      });
+
+      expect(PersistenceManager).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
