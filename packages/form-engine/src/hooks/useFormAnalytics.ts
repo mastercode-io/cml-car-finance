@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import { FormAnalytics } from '../analytics/FormAnalytics';
+import { FormAnalytics, resolveSamplingRate } from '../analytics/FormAnalytics';
 import { PerformanceBudget } from '../performance/PerformanceBudget';
 import type { FormAnalyticsConfig, SessionMetrics } from '../types';
 import { DEFAULT_PAYLOAD_VERSION } from '../persistence/PersistenceManager';
 
 const DEFAULT_HOOK_CONFIG: Pick<
   FormAnalyticsConfig,
-  'enabled' | 'sampling' | 'sensitive' | 'bufferSize' | 'flushInterval'
+  'enabled' | 'sensitive' | 'bufferSize' | 'flushInterval'
 > = {
   enabled: true,
-  sampling: 1,
   sensitive: true,
   bufferSize: 10,
   flushInterval: 5000,
@@ -50,6 +49,7 @@ export function useFormAnalytics(
       ...DEFAULT_HOOK_CONFIG,
       ...config,
       enabled: config?.enabled ?? DEFAULT_HOOK_CONFIG.enabled,
+      sampling: resolveSamplingRate(config?.sampling),
       formId,
       schemaVersion,
       payloadVersion: config?.payloadVersion ?? DEFAULT_PAYLOAD_VERSION,

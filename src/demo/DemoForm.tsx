@@ -157,7 +157,6 @@ export const DemoForm = () => {
 
   const analytics = useFormAnalytics(demoFormSchema.$id, demoFormSchema.version, {
     enabled: true,
-    sampling: 1,
     sensitive: true,
     performanceBudgets: {
       stepTransition: 150,

@@ -45,7 +45,7 @@ Ship a lean, reliable GA of the JSON‑schema–driven form builder for a small 
 
 ## Telemetry
 - Include `v` and `payloadVersion` on events.
-- Default **1% sampling in prod**, higher in non‑prod via env.
+- Default **1% sampling in prod**, higher in non‑prod via env (`NEXT_PUBLIC_FORM_ANALYTICS_SAMPLING` or `FORM_ANALYTICS_SAMPLING`).
 
 ## Rollback & recovery
 - Keep last **N schema versions** on CDN.

@@ -13,10 +13,55 @@ interface TrackEventOptions
   sensitive?: boolean;
 }
 
+const SAMPLING_ENV_KEYS = ['NEXT_PUBLIC_FORM_ANALYTICS_SAMPLING', 'FORM_ANALYTICS_SAMPLING'];
+
+const clampSampling = (value: number): number => {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  if (value > 1) {
+    return Math.min(1, Math.max(0, value / 100));
+  }
+
+  return Math.min(1, Math.max(0, value));
+};
+
+const resolveSamplingFromEnv = (): number | undefined => {
+  if (typeof process === 'undefined' || !process?.env) {
+    return undefined;
+  }
+
+  for (const key of SAMPLING_ENV_KEYS) {
+    const rawValue = process.env[key];
+    if (typeof rawValue === 'string' && rawValue.trim() !== '') {
+      const parsed = Number.parseFloat(rawValue.trim());
+      if (!Number.isNaN(parsed)) {
+        return clampSampling(parsed);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+export const resolveSamplingRate = (explicit?: number): number => {
+  if (typeof explicit === 'number') {
+    return clampSampling(explicit);
+  }
+
+  const envSampling = resolveSamplingFromEnv();
+  if (typeof envSampling === 'number') {
+    return envSampling;
+  }
+
+  const environment = typeof process !== 'undefined' ? process.env.NODE_ENV : undefined;
+  return environment === 'production' ? 0.01 : 1;
+};
+
 const DEFAULT_CONFIG: Required<
-  Pick<FormAnalyticsConfig, 'sampling' | 'sensitive' | 'bufferSize' | 'flushInterval'>
+  Pick<FormAnalyticsConfig, 'sensitive' | 'bufferSize' | 'flushInterval'>
 > = {
-  sampling: 1,
   sensitive: true,
   bufferSize: 25,
   flushInterval: 8000,
@@ -41,6 +86,7 @@ export class FormAnalytics {
     this.config = {
       ...DEFAULT_CONFIG,
       ...config,
+      sampling: resolveSamplingRate(config.sampling),
     };
 
     this.sessionId = this.generateSessionId();
