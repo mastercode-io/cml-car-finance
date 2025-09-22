@@ -139,21 +139,6 @@ describe('FormAnalytics', () => {
     expect(events[0]?.schemaVersion).toBe('2024.09.0');
   });
 
-  it('attaches version metadata to tracked events', () => {
-    analytics?.trackEvent(
-      'form_initialized',
-      { formId: 'test-form', schemaVersion: '2024.09.0' },
-      'form',
-      { formId: 'test-form', schemaVersion: '2024.09.0', sensitive: false },
-    );
-
-    const events = (analytics as unknown as { events: Array<AnalyticsEvent> })?.events ?? [];
-    expect(events[0]?.v).toBe(1);
-    expect(events[0]?.payloadVersion).toBe(DEFAULT_PAYLOAD_VERSION);
-    expect(events[0]?.formId).toBe('test-form');
-    expect(events[0]?.schemaVersion).toBe('2024.09.0');
-  });
-
   it('creates performance marks for step transitions', () => {
     const measure = analytics?.measureStepTransition('step1', 'step2');
     expect(typeof measure).toBe('function');
