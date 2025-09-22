@@ -51,12 +51,16 @@ export const demoFormSchema: UnifiedFormSchema = {
           phone: {
             $ref: '#/definitions/phoneNumber',
           },
+          postcode: {
+            type: 'string',
+            format: 'gb-postcode',
+          },
           dateOfBirth: {
             type: 'string',
             format: 'date',
           },
         },
-        required: ['firstName', 'lastName', 'email', 'dateOfBirth'],
+        required: ['firstName', 'lastName', 'email', 'postcode', 'dateOfBirth'],
       },
     },
     {
@@ -225,7 +229,33 @@ export const demoFormSchema: UnifiedFormSchema = {
               ],
             },
           },
+          references: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 3,
+            items: {
+              type: 'object',
+              properties: {
+                fullName: {
+                  type: 'string',
+                  minLength: 2,
+                  maxLength: 120,
+                },
+                relationship: {
+                  type: 'string',
+                  minLength: 2,
+                  maxLength: 120,
+                },
+                email: {
+                  type: 'string',
+                  format: 'email',
+                },
+              },
+              required: ['fullName', 'relationship', 'email'],
+            },
+          },
         },
+        required: ['jobType', 'remotePreference', 'references'],
       },
     },
     {
@@ -356,6 +386,11 @@ export const demoFormSchema: UnifiedFormSchema = {
         label: 'Phone number',
         placeholder: '+1 202 555 0108',
       },
+      postcode: {
+        component: 'Postcode',
+        label: 'Home postcode',
+        helpText: 'Enter a UK postcode, for example SW1A 1AA.',
+      },
       dateOfBirth: {
         component: 'Date',
         label: 'Date of birth',
@@ -465,6 +500,41 @@ export const demoFormSchema: UnifiedFormSchema = {
       preferredLocation: {
         component: 'Text',
         label: 'Preferred location',
+      },
+      references: {
+        component: 'Repeater',
+        label: 'Professional references',
+        description:
+          'List people who can vouch for your work. We will contact them only after discussing with you.',
+        itemLabel: 'Reference',
+        minItems: 1,
+        maxItems: 3,
+        addButtonLabel: 'Add reference',
+        removeButtonLabel: 'Remove reference',
+        emptyStateText: 'Add at least one reference with contact details.',
+        fields: [
+          {
+            name: 'fullName',
+            component: 'Text',
+            label: 'Full name',
+            placeholder: 'Alex Johnson',
+            required: true,
+          },
+          {
+            name: 'relationship',
+            component: 'Text',
+            label: 'Relationship',
+            placeholder: 'Former manager',
+            required: true,
+          },
+          {
+            name: 'email',
+            component: 'Email',
+            label: 'Email address',
+            placeholder: 'alex.johnson@example.com',
+            required: true,
+          },
+        ],
       },
       workAuthorization: {
         component: 'Checkbox',

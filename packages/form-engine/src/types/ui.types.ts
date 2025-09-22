@@ -45,10 +45,37 @@ export interface WidgetConfig {
   optionsFrom?: string;
   mask?: string;
   format?: string;
+  autoFormat?: boolean;
   min?: number;
   max?: number;
   step?: number;
   emptyValue?: unknown;
+  fields?: RepeaterItemConfig[];
+  itemLabel?: string;
+  addButtonLabel?: string;
+  removeButtonLabel?: string;
+  moveUpLabel?: string;
+  moveDownLabel?: string;
+  emptyStateText?: string;
+  minItems?: number;
+  maxItems?: number;
+  defaultItemValue?: Record<string, unknown>;
+}
+
+export interface RepeaterItemConfig {
+  name: string;
+  component: WidgetType;
+  label?: string;
+  placeholder?: string;
+  description?: string;
+  helpText?: string;
+  className?: string;
+  options?: Array<{ label: string; value: string | number }>;
+  disabled?: boolean;
+  readOnly?: boolean;
+  required?: boolean;
+  defaultValue?: unknown;
+  [key: string]: unknown;
 }
 
 export interface WidgetStyleRule {

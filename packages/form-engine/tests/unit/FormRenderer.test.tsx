@@ -171,4 +171,151 @@ describe('FormRenderer', () => {
       expect(screen.getByText('Conditional Step')).toBeInTheDocument();
     });
   });
+
+  it('handles repeater fields and submits array data', async () => {
+    const schema: UnifiedFormSchema = {
+      $id: 'repeater-form',
+      version: '1.0.0',
+      metadata: {
+        title: 'Repeater Form',
+        description: 'Test form with repeater field',
+        sensitivity: 'low',
+      },
+      steps: [
+        {
+          id: 'household',
+          title: 'Household',
+          schema: {
+            type: 'object',
+            properties: {
+              references: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 3,
+                items: {
+                  type: 'object',
+                  properties: {
+                    fullName: { type: 'string', minLength: 1 },
+                    email: { type: 'string', format: 'email' },
+                  },
+                  required: ['fullName', 'email'],
+                },
+              },
+            },
+            required: ['references'],
+          },
+        },
+      ],
+      transitions: [],
+      ui: {
+        widgets: {
+          references: {
+            component: 'Repeater',
+            label: 'References',
+            itemLabel: 'Reference',
+            minItems: 1,
+            maxItems: 3,
+            addButtonLabel: 'Add reference',
+            removeButtonLabel: 'Remove reference',
+            fields: [
+              { name: 'fullName', component: 'Text', label: 'Full name', required: true },
+              { name: 'email', component: 'Email', label: 'Email address', required: true },
+            ],
+          },
+        },
+      },
+    };
+
+    const onSubmit = jest.fn();
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    expect(await screen.findByText(/reference 1/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByRole('textbox', { name: /full name/i }), {
+      target: { value: 'Test Reference' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /email address/i }), {
+      target: { value: 'ref@example.com' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          references: [
+            expect.objectContaining({
+              fullName: 'Test Reference',
+              email: 'ref@example.com',
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
+  it('validates and formats postcode input using the specialised widget', async () => {
+    const schema: UnifiedFormSchema = {
+      $id: 'postcode-form',
+      version: '1.0.0',
+      metadata: {
+        title: 'Postcode Form',
+        description: 'Test form with postcode field',
+        sensitivity: 'low',
+      },
+      steps: [
+        {
+          id: 'address',
+          title: 'Address',
+          schema: {
+            type: 'object',
+            properties: {
+              postcode: { type: 'string', format: 'gb-postcode' },
+            },
+            required: ['postcode'],
+          },
+        },
+      ],
+      transitions: [],
+      ui: {
+        widgets: {
+          postcode: { component: 'Postcode', label: 'Postcode' },
+        },
+      },
+    };
+
+    const onSubmit = jest.fn();
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    const input = await screen.findByRole('textbox', { name: /postcode/i });
+
+    fireEvent.change(input, { target: { value: 'invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: 'sw1a1aa' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postcode: 'SW1A 1AA',
+      }),
+    );
+  });
 });
