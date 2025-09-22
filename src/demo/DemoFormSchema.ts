@@ -51,12 +51,16 @@ export const demoFormSchema: UnifiedFormSchema = {
           phone: {
             $ref: '#/definitions/phoneNumber',
           },
+          postcode: {
+            type: 'string',
+            format: 'gb-postcode',
+          },
           dateOfBirth: {
             type: 'string',
             format: 'date',
           },
         },
-        required: ['firstName', 'lastName', 'email', 'dateOfBirth'],
+        required: ['firstName', 'lastName', 'email', 'postcode', 'dateOfBirth'],
       },
     },
     {
@@ -381,6 +385,11 @@ export const demoFormSchema: UnifiedFormSchema = {
         component: 'Text',
         label: 'Phone number',
         placeholder: '+1 202 555 0108',
+      },
+      postcode: {
+        component: 'Postcode',
+        label: 'Home postcode',
+        helpText: 'Enter a UK postcode, for example SW1A 1AA.',
       },
       dateOfBirth: {
         component: 'Date',

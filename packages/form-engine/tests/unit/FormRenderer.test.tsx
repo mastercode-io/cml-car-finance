@@ -261,4 +261,61 @@ describe('FormRenderer', () => {
       );
     });
   });
+
+  it('validates and formats postcode input using the specialised widget', async () => {
+    const schema: UnifiedFormSchema = {
+      $id: 'postcode-form',
+      version: '1.0.0',
+      metadata: {
+        title: 'Postcode Form',
+        description: 'Test form with postcode field',
+        sensitivity: 'low',
+      },
+      steps: [
+        {
+          id: 'address',
+          title: 'Address',
+          schema: {
+            type: 'object',
+            properties: {
+              postcode: { type: 'string', format: 'gb-postcode' },
+            },
+            required: ['postcode'],
+          },
+        },
+      ],
+      transitions: [],
+      ui: {
+        widgets: {
+          postcode: { component: 'Postcode', label: 'Postcode' },
+        },
+      },
+    };
+
+    const onSubmit = jest.fn();
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    const input = await screen.findByRole('textbox', { name: /postcode/i });
+
+    fireEvent.change(input, { target: { value: 'invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: 'sw1a1aa' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postcode: 'SW1A 1AA',
+      }),
+    );
+  });
 });

@@ -80,7 +80,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
     defaultItemValue,
   } = (componentProps ?? {}) as RepeaterComponentProps;
 
-  // A11y live region
+  // A11y live region (polite)
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
   const clearTimerRef = React.useRef<number | undefined>(undefined);
   const announce = React.useCallback((message: string) => {

@@ -15,6 +15,7 @@ import { RepeaterField } from '../components/fields/RepeaterField';
 import { CurrencyField } from '../components/fields/specialized/CurrencyField';
 import { EmailField } from '../components/fields/specialized/EmailField';
 import { PhoneField } from '../components/fields/specialized/PhoneField';
+import { PostcodeField } from '../components/fields/specialized/PostcodeField';
 import type { WidgetType } from '../types';
 
 export interface FieldComponent<TProps extends FieldProps = FieldProps> {
@@ -89,6 +90,7 @@ export function initializeFieldRegistry(): FieldRegistry {
       ['Rating', { component: RatingField as unknown as React.ComponentType<FieldProps> }],
       ['Currency', { component: CurrencyField as unknown as React.ComponentType<FieldProps> }],
       ['Phone', { component: PhoneField as unknown as React.ComponentType<FieldProps> }],
+      ['Postcode', { component: PostcodeField as unknown as React.ComponentType<FieldProps> }],
       ['Email', { component: EmailField as unknown as React.ComponentType<FieldProps> }],
     ];
 

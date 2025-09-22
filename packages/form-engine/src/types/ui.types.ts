@@ -45,6 +45,7 @@ export interface WidgetConfig {
   optionsFrom?: string;
   mask?: string;
   format?: string;
+  autoFormat?: boolean;
   min?: number;
   max?: number;
   step?: number;
