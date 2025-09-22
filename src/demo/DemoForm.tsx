@@ -10,6 +10,7 @@ import {
   PersistenceManager,
   type DraftData,
   useFormAnalytics,
+  DEFAULT_PAYLOAD_VERSION,
 } from '@form-engine/index';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -163,6 +164,7 @@ export const DemoForm = () => {
       validation: 60,
       initialLoad: 400,
     },
+    payloadVersion: DEFAULT_PAYLOAD_VERSION,
   });
 
   useEffect(() => {

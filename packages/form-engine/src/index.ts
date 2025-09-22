@@ -38,6 +38,7 @@ export {
   type PersistenceConfig,
   type SaveOptions,
   type StoredDraft,
+  DEFAULT_PAYLOAD_VERSION,
 } from './persistence/PersistenceManager';
 export { useAutosave } from './persistence/useAutosave';
 export { DraftRecovery } from './persistence/DraftRecovery';

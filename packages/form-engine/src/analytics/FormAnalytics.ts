@@ -4,6 +4,7 @@ import type {
   PerformanceMetric,
   SessionMetrics,
 } from '../types';
+import { DEFAULT_PAYLOAD_VERSION } from '../persistence/PersistenceManager';
 
 interface TrackEventOptions
   extends Partial<
@@ -21,6 +22,8 @@ const DEFAULT_CONFIG: Required<
   flushInterval: 8000,
 };
 
+const DEFAULT_EVENT_VERSION = 1;
+
 export class FormAnalytics {
   private events: AnalyticsEvent[] = [];
   private sessionId: string;
@@ -29,6 +32,10 @@ export class FormAnalytics {
   private sessionMetrics: SessionMetrics;
   private flushTimer?: ReturnType<typeof setInterval>;
   private listenersAttached = false;
+  private analyticsVersion: number;
+  private payloadVersion: string;
+  private formId?: string;
+  private schemaVersion?: string;
 
   constructor(config: FormAnalyticsConfig) {
     this.config = {
@@ -37,6 +44,10 @@ export class FormAnalytics {
     };
 
     this.sessionId = this.generateSessionId();
+    this.analyticsVersion = config.eventVersion ?? DEFAULT_EVENT_VERSION;
+    this.payloadVersion = config.payloadVersion ?? DEFAULT_PAYLOAD_VERSION;
+    this.formId = config.formId;
+    this.schemaVersion = config.schemaVersion;
     this.sessionMetrics = {
       startTime: Date.now(),
       completedSteps: [],
@@ -64,15 +75,21 @@ export class FormAnalytics {
     const payload = shouldSanitize ? this.sanitizeData(data) : data;
 
     const event: AnalyticsEvent = {
+      v: this.analyticsVersion,
+      payloadVersion: this.payloadVersion,
       name: eventName,
       category: options.category ?? category,
       data: payload,
       timestamp: Date.now(),
       sessionId: this.sessionId,
-      formId: options.formId ?? (typeof data.formId === 'string' ? data.formId : undefined),
+      formId:
+        options.formId ??
+        (typeof data.formId === 'string' ? data.formId : undefined) ??
+        this.formId,
       schemaVersion:
         options.schemaVersion ??
-        (typeof data.schemaVersion === 'string' ? data.schemaVersion : undefined),
+        (typeof data.schemaVersion === 'string' ? data.schemaVersion : undefined) ??
+        this.schemaVersion,
       stepId: options.stepId ?? (typeof data.stepId === 'string' ? data.stepId : undefined),
       fieldName:
         options.fieldName ?? (typeof data.fieldName === 'string' ? data.fieldName : undefined),
@@ -416,6 +433,8 @@ export class FormAnalytics {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        v: this.analyticsVersion,
+        payloadVersion: this.payloadVersion,
         events,
         sessionId: this.sessionId,
         timestamp: Date.now(),
@@ -437,6 +456,8 @@ export class FormAnalytics {
     }
 
     const payload = JSON.stringify({
+      v: this.analyticsVersion,
+      payloadVersion: this.payloadVersion,
       events: this.events,
       sessionId: this.sessionId,
       sessionMetrics: this.sessionMetrics,
