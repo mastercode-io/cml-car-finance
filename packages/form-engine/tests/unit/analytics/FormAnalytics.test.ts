@@ -1,7 +1,8 @@
 import { performance as nodePerformance } from 'perf_hooks';
 
 import { FormAnalytics } from '../../../src/analytics/FormAnalytics';
-import type { FormAnalyticsConfig } from '../../../src/types';
+import { DEFAULT_PAYLOAD_VERSION } from '../../../src/persistence/PersistenceManager';
+import type { AnalyticsEvent, FormAnalyticsConfig } from '../../../src/types';
 
 const perf = globalThis.performance as Performance | undefined;
 if (!perf || typeof perf.mark !== 'function') {
@@ -20,6 +21,9 @@ describe('FormAnalytics', () => {
     sensitive: true,
     bufferSize: 50,
     flushInterval: 0,
+    formId: 'test-form',
+    schemaVersion: '2024.09.0',
+    payloadVersion: DEFAULT_PAYLOAD_VERSION,
     ...overrides,
   });
 
@@ -71,6 +75,21 @@ describe('FormAnalytics', () => {
     const names = events.map((event) => event.name);
     expect(names).toContain('sampled_event');
     expect(names).not.toContain('skipped_event');
+  });
+
+  it('attaches version metadata to tracked events', () => {
+    analytics?.trackEvent(
+      'form_initialized',
+      { formId: 'test-form', schemaVersion: '2024.09.0' },
+      'form',
+      { formId: 'test-form', schemaVersion: '2024.09.0', sensitive: false },
+    );
+
+    const events = (analytics as unknown as { events: Array<AnalyticsEvent> })?.events ?? [];
+    expect(events[0]?.v).toBe(1);
+    expect(events[0]?.payloadVersion).toBe(DEFAULT_PAYLOAD_VERSION);
+    expect(events[0]?.formId).toBe('test-form');
+    expect(events[0]?.schemaVersion).toBe('2024.09.0');
   });
 
   it('creates performance marks for step transitions', () => {

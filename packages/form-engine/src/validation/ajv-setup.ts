@@ -50,9 +50,17 @@ export class ValidationEngine {
   }
 
   private registerCustomFormats(): void {
+    const postcodeValidator = (data: string) =>
+      /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(data.trim());
+
+    this.ajv.addFormat('gb-postcode', {
+      type: 'string',
+      validate: postcodeValidator,
+    });
+
     this.ajv.addFormat('uk-postcode', {
       type: 'string',
-      validate: (data: string) => /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(data.trim()),
+      validate: postcodeValidator,
     });
 
     this.ajv.addFormat('us-zip', {

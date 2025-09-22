@@ -61,6 +61,38 @@ describe('SchemaValidator', () => {
     expect(result.valid).toBe(false);
     expect(result.errors[0]?.keyword).toBe('enum');
   });
+
+  it('accepts schemas that use gb-postcode format with the postcode widget', () => {
+    const firstStep = baseSchema.steps[0]!;
+    const schema: UnifiedFormSchema = {
+      ...baseSchema,
+      steps: [
+        {
+          ...firstStep,
+          schema: {
+            type: 'object',
+            properties: {
+              ...(firstStep.schema as JSONSchema).properties,
+              postcode: { type: 'string', format: 'gb-postcode' },
+            },
+          },
+        },
+      ],
+      ui: {
+        ...baseSchema.ui,
+        widgets: {
+          ...baseSchema.ui.widgets,
+          postcode: {
+            component: 'Postcode',
+            label: 'Postcode',
+          },
+        },
+      },
+    };
+
+    const result = validator.validateSchema(schema);
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe('RuleEvaluator', () => {
@@ -159,6 +191,28 @@ describe('ValidationEngine', () => {
 
     const success = await engine.validate(schema, { phone: '+14155551234' });
     const failure = await engine.validate(schema, { phone: '123' });
+
+    expect(success.valid).toBe(true);
+    expect(failure.valid).toBe(false);
+  });
+
+  it('validates gb-postcode and legacy uk-postcode formats', async () => {
+    const schema: JSONSchema = {
+      type: 'object',
+      properties: {
+        postcode: { type: 'string', format: 'gb-postcode' },
+        legacyPostcode: { type: 'string', format: 'uk-postcode' },
+      },
+    };
+
+    const success = await engine.validate(schema, {
+      postcode: 'SW1A 1AA',
+      legacyPostcode: 'EC1A 1BB',
+    });
+    const failure = await engine.validate(schema, {
+      postcode: 'INVALID',
+      legacyPostcode: '12345',
+    });
 
     expect(success.valid).toBe(true);
     expect(failure.valid).toBe(false);

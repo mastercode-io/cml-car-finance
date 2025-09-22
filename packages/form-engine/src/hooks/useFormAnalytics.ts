@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { FormAnalytics } from '../analytics/FormAnalytics';
 import { PerformanceBudget } from '../performance/PerformanceBudget';
 import type { FormAnalyticsConfig, SessionMetrics } from '../types';
+import { DEFAULT_PAYLOAD_VERSION } from '../persistence/PersistenceManager';
 
 const DEFAULT_HOOK_CONFIG: Pick<
   FormAnalyticsConfig,
@@ -49,6 +50,9 @@ export function useFormAnalytics(
       ...DEFAULT_HOOK_CONFIG,
       ...config,
       enabled: config?.enabled ?? DEFAULT_HOOK_CONFIG.enabled,
+      formId,
+      schemaVersion,
+      payloadVersion: config?.payloadVersion ?? DEFAULT_PAYLOAD_VERSION,
     };
 
     analyticsRef.current = new FormAnalytics(mergedConfig);
