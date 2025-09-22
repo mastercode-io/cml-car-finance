@@ -18,7 +18,8 @@ type PostcodeComponentProps = React.InputHTMLAttributes<HTMLInputElement> & {
   autoFormat?: boolean;
 };
 
-const POSTCODE_PATTERN = '^[A-Za-z]{1,2}\\d[A-Za-z\\d]? ?\\d[A-Za-z]{2}$';
+const POSTCODE_PATTERN = '^(?:GIR ?0AA|[A-Za-z]{1,2}\\d[A-Za-z\\d]? ?\\d[A-Za-z]{2})$';
+const GIR_POSTCODE_COMPACT = 'GIR0AA';
 
 const normalizePostcode = (value: string): string =>
   value
@@ -30,6 +31,10 @@ const formatPostcode = (value: string, autoFormat: boolean): string => {
   const normalized = normalizePostcode(value);
   if (!normalized) {
     return '';
+  }
+
+  if (normalized === GIR_POSTCODE_COMPACT) {
+    return autoFormat ? 'GIR 0AA' : GIR_POSTCODE_COMPACT;
   }
 
   if (!autoFormat || normalized.length <= 3) {

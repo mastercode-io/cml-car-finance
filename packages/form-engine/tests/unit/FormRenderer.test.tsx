@@ -481,6 +481,48 @@ describe('FormRenderer', () => {
     }
   });
 
+  it('surfaces offline guidance and saves a draft when submission fails offline', async () => {
+    const schema = buildSchema();
+    const offlineError = new TypeError('Failed to fetch');
+    const onSubmit = jest.fn().mockRejectedValue(offlineError);
+    const onlineSpy = jest.spyOn(window.navigator, 'onLine', 'get');
+    onlineSpy.mockReturnValue(false);
+
+    try {
+      render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Offline' },
+      });
+      fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+        target: { value: 'User' },
+      });
+
+      fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+      await waitFor(() => {
+        fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+          target: { value: 'offline@example.com' },
+        });
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+
+      await waitFor(() => {
+        expect(saveDraftMock).toHaveBeenCalledTimes(1);
+        expect(
+          screen.getByText(/you appear to be offline\. we saved your progress so you can try again when you reconnect\./i),
+        ).toBeInTheDocument();
+      });
+    } finally {
+      onlineSpy.mockRestore();
+    }
+  });
+
   it('locks controls when the session expires and supports restarting', async () => {
     jest.useFakeTimers();
 

@@ -434,6 +434,32 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     return undefined;
   }, []);
 
+  const isOfflineError = React.useCallback((error: unknown): boolean => {
+    const navigatorOffline =
+      typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+        ? navigator.onLine === false
+        : false;
+    if (navigatorOffline) {
+      return true;
+    }
+
+    if (error instanceof TypeError) {
+      return true;
+    }
+
+    if (error && typeof error === 'object' && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') {
+        const lower = message.toLowerCase();
+        if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }, []);
+
   const handleFormSubmit = React.useCallback(
     async (data: Record<string, unknown>) => {
       if (isSessionExpired) {
@@ -480,13 +506,14 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
             setSubmissionFeedback(null);
             return;
           } catch (error) {
+            const offline = isOfflineError(error);
             const status = getErrorStatus(error);
             const retryable =
               typeof status === 'number'
                 ? status === 429 || (status >= 500 && status < 600)
                 : false;
 
-            if (attempt < maxAttempts && retryable) {
+            if (attempt < maxAttempts && retryable && !offline) {
               setSubmissionFeedback({
                 type: 'info',
                 message: `Submission failed (attempt ${attempt} of ${maxAttempts}). Retrying…`,
@@ -497,13 +524,23 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
             }
 
             const draftSaved = await saveDraftAfterFailure(data);
-            setSubmissionFeedback({
-              type: 'error',
-              message: draftSaved
-                ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
-                : 'We were unable to submit your form. Please try again shortly.',
-            });
-            console.error('Form submission failed', error);
+            if (offline) {
+              setSubmissionFeedback({
+                type: 'error',
+                message: draftSaved
+                  ? 'You appear to be offline. We saved your progress so you can try again when you reconnect.'
+                  : 'You appear to be offline. Check your connection and try again when you are back online.',
+              });
+              console.error('Form submission failed (offline)', error);
+            } else {
+              setSubmissionFeedback({
+                type: 'error',
+                message: draftSaved
+                  ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
+                  : 'We were unable to submit your form. Please try again shortly.',
+              });
+              console.error('Form submission failed', error);
+            }
             return;
           }
         }
@@ -513,6 +550,7 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     },
     [
       getErrorStatus,
+      isOfflineError,
       methods.formState.errors,
       onSubmit,
       onValidationError,

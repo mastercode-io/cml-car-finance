@@ -50,8 +50,15 @@ export class ValidationEngine {
   }
 
   private registerCustomFormats(): void {
-    const postcodeValidator = (data: string) =>
-      /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/i.test(data.trim());
+    const postcodeValidator = (data: string) => {
+      if (typeof data !== 'string') return false;
+      const trimmed = data.trim().toUpperCase();
+      if (!trimmed) return false;
+      if (trimmed === 'GIR 0AA' || trimmed === 'GIR0AA') {
+        return true;
+      }
+      return /^[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}$/.test(trimmed);
+    };
 
     this.ajv.addFormat('gb-postcode', {
       type: 'string',
