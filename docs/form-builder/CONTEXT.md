@@ -39,6 +39,7 @@ Ship a lean, reliable GA of the JSON‑schema–driven form builder for a small 
   - Labels, `aria-describedby` for help/error text.
 - **Security**:
   - Enforce **CSP with nonce**; no inline scripts/styles without nonce.
+    - `middleware.ts` issues the CSP header/nonce; client components should read it via `NonceProvider` (see `components/security/nonce-context.tsx`).
   - Treat all input as untrusted; server‑side re‑validation for critical paths.
   - Avoid leaking PII in logs/analytics; scrub before emission.
 
