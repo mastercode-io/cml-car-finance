@@ -2,14 +2,14 @@
 
 import * as React from 'react';
 import {
+  useFormContext,
+  useFieldArray,
   type ArrayPath,
   type Control,
   type FieldArray,
   type FieldArrayWithId,
   type FieldValues,
   type Path,
-  useFieldArray,
-  useFormContext,
 } from 'react-hook-form';
 
 import type { RepeaterItemConfig } from '../../types';
@@ -30,154 +30,114 @@ interface RepeaterComponentProps {
   defaultItemValue?: Record<string, unknown>;
 }
 
-const ANNOUNCEMENT_RESET_DELAY = 1500;
-const DEFAULT_EMPTY_TEXT = 'No items yet.';
-const DEFAULT_ITEM_LABEL = 'Item';
-const DEFAULT_REMOVE_LABEL = 'Remove';
-const DEFAULT_MOVE_UP_LABEL = 'Move up';
-const DEFAULT_MOVE_DOWN_LABEL = 'Move down';
+type RepeaterFieldProps<TFieldValues extends FieldValues = FieldValues> = FieldProps<
+  TFieldValues,
+  Record<string, unknown> | Record<string, unknown>[]
+>;
+
+const ANNOUNCEMENT_RESET_DELAY = 2000;
+
+const getErrorMessage = (error: unknown): string | undefined => {
+  if (!error) return undefined;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const msg = (error as { message?: unknown }).message;
+    return typeof msg === 'string' ? msg : undefined;
+  }
+  return undefined;
+};
 
 const buildDefaultItem = (
   configs: RepeaterItemConfig[],
   fallback?: Record<string, unknown>,
 ): Record<string, unknown> => {
-  const seededFromConfig = configs.reduce<Record<string, unknown>>((acc, config) => {
-    if (config.defaultValue !== undefined) {
-      acc[config.name] = config.defaultValue;
-    }
+  const seeded = configs.reduce<Record<string, unknown>>((acc, cfg) => {
+    if (cfg.defaultValue !== undefined) acc[cfg.name] = cfg.defaultValue;
     return acc;
   }, {});
-
-  return {
-    ...(fallback ?? {}),
-    ...seededFromConfig,
-  };
+  return { ...(fallback ?? {}), ...seeded };
 };
 
-const getErrorMessage = (error: unknown): string | undefined => {
-  if (!error) {
-    return undefined;
-  }
+export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
+  props: RepeaterFieldProps<TFieldValues>,
+) => {
+  const { name, control, componentProps, className, disabled, readOnly, ariaDescribedBy } = props;
 
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    return typeof message === 'string' ? message : undefined;
-  }
-
-  return undefined;
-};
-
-export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
-  name,
-  control,
-  componentProps,
-  className,
-  disabled,
-  readOnly,
-  ariaDescribedBy,
-}: FieldProps<TFieldValues, Record<string, unknown> | Record<string, unknown>[]>) => {
-  const form = useFormContext<TFieldValues>();
-  const resolvedControl: Control<TFieldValues> | undefined = control ?? form?.control;
-
-  if (!resolvedControl) {
-    throw new Error('RepeaterField requires a react-hook-form control.');
-  }
+  const formContext = useFormContext<TFieldValues>();
+  const resolvedControl: Control<TFieldValues> | undefined = control ?? formContext?.control;
+  if (!resolvedControl) throw new Error('RepeaterField requires a react-hook-form control.');
 
   const {
-    fields: configuredFields = [],
-    itemLabel = DEFAULT_ITEM_LABEL,
+    fields: itemConfigs = [],
+    itemLabel = 'Item',
     addButtonLabel,
     removeButtonLabel,
     moveUpLabel,
     moveDownLabel,
-    emptyStateText = DEFAULT_EMPTY_TEXT,
+    emptyStateText = 'No items yet.',
     minItems,
     maxItems,
     defaultItemValue,
   } = (componentProps ?? {}) as RepeaterComponentProps;
 
+  // A11y live region (polite)
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
-  const resetTimerRef = React.useRef<number | undefined>(undefined);
-
+  const clearTimerRef = React.useRef<number | undefined>(undefined);
   const announce = React.useCallback((message: string) => {
     const region = liveRegionRef.current;
-    if (!region) {
-      return;
-    }
-
+    if (!region) return;
     region.textContent = message;
-
     if (typeof window !== 'undefined') {
-      window.clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = window.setTimeout(() => {
-        if (region.textContent === message) {
-          region.textContent = '';
-        }
+      window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = window.setTimeout(() => {
+        if (region.textContent === message) region.textContent = '';
       }, ANNOUNCEMENT_RESET_DELAY);
     }
   }, []);
-
   React.useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined') {
-        window.clearTimeout(resetTimerRef.current);
-      }
+      if (typeof window !== 'undefined') window.clearTimeout(clearTimerRef.current);
     };
   }, []);
 
-  const normalizedItemConfigs = React.useMemo(
+  const itemFieldConfigs = React.useMemo(
     () =>
-      Array.isArray(configuredFields)
-        ? configuredFields.filter((config): config is RepeaterItemConfig =>
-            Boolean(config?.name && config?.component),
+      Array.isArray(itemConfigs)
+        ? itemConfigs.filter(
+            (cfg): cfg is RepeaterItemConfig =>
+              Boolean(cfg && typeof cfg.name === 'string' && cfg.component),
           )
         : [],
-    [configuredFields],
+    [itemConfigs],
   );
 
-  const defaultItem = React.useMemo(
-    () => buildDefaultItem(normalizedItemConfigs, defaultItemValue),
-    [defaultItemValue, normalizedItemConfigs],
+  const itemDefaults = React.useMemo(
+    () => buildDefaultItem(itemFieldConfigs, defaultItemValue),
+    [itemFieldConfigs, defaultItemValue],
   );
 
-  const fieldArray = useFieldArray<TFieldValues, ArrayPath<TFieldValues>>({
+  const { fields, append, remove, move } = useFieldArray<TFieldValues, ArrayPath<TFieldValues>>({
     name: name as ArrayPath<TFieldValues>,
     control: resolvedControl,
   });
 
-  const { fields, append, remove, move } = fieldArray;
-
+  // Enforce min items
   React.useEffect(() => {
-    if (typeof minItems !== 'number' || minItems <= 0) {
-      return;
-    }
-
-    if (fields.length >= minItems) {
-      return;
-    }
-
+    if (typeof minItems !== 'number' || minItems <= 0) return;
+    if (fields.length >= minItems) return;
     const missing = minItems - fields.length;
-    for (let index = 0; index < missing; index += 1) {
-      append(defaultItem as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
+    for (let i = 0; i < missing; i += 1) {
+      append(itemDefaults as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
     }
-  }, [append, defaultItem, fields.length, minItems]);
+  }, [append, fields.length, itemDefaults, minItems]);
 
+  // Enforce max items
   React.useEffect(() => {
-    if (typeof maxItems !== 'number' || maxItems <= 0) {
-      return;
-    }
-
-    if (fields.length <= maxItems) {
-      return;
-    }
-
-    const overflow = fields.length - maxItems;
-    const indexesToRemove = Array.from({ length: overflow }, (_, position) => maxItems + position);
-    remove(indexesToRemove);
+    if (typeof maxItems !== 'number' || maxItems <= 0) return;
+    if (fields.length <= maxItems) return;
+    const extra = fields.length - maxItems;
+    const idxToRemove = Array.from({ length: extra }, (_, pos) => maxItems + pos);
+    remove(idxToRemove);
   }, [fields.length, maxItems, remove]);
 
   const canAdd =
@@ -186,69 +146,59 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
     !disabled && !readOnly && (typeof minItems !== 'number' || fields.length > minItems);
   const canReorder = !disabled && !readOnly && fields.length > 1;
 
-  const handleAdd = React.useCallback(() => {
-    if (!canAdd) {
-      return;
-    }
-
-    append(defaultItem as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
+  const handleAddItem = React.useCallback(() => {
+    if (!canAdd) return;
+    append(itemDefaults as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
     announce(`${itemLabel} ${fields.length + 1} added.`);
-  }, [announce, append, canAdd, defaultItem, fields.length, itemLabel]);
+  }, [append, canAdd, fields.length, itemDefaults, itemLabel, announce]);
 
-  const handleRemove = React.useCallback(
+  const handleRemoveItem = React.useCallback(
     (index: number) => {
-      if (!canRemove) {
-        return;
-      }
-
+      if (!canRemove) return;
       remove(index);
       announce(`${itemLabel} ${index + 1} removed.`);
     },
-    [announce, canRemove, itemLabel, remove],
+    [canRemove, remove, itemLabel, announce],
   );
 
-  const handleMove = React.useCallback(
+  const handleMoveItem = React.useCallback(
     (from: number, to: number) => {
-      if (!canReorder) {
-        return;
-      }
-
+      if (!canReorder) return;
       move(from, to);
       announce(`${itemLabel} ${from + 1} moved to position ${to + 1}.`);
     },
-    [announce, canReorder, itemLabel, move],
+    [canReorder, move, itemLabel, announce],
   );
 
-  const getNestedError = React.useCallback(
+  const getFieldError = React.useCallback(
     (fieldName: string) => {
-      if (!form) {
-        return undefined;
-      }
-
-      const fieldState = form.getFieldState(fieldName as Path<TFieldValues>, form.formState);
+      if (!formContext) return undefined;
+      const fieldState = formContext.getFieldState(
+        fieldName as Path<TFieldValues>,
+        formContext.formState,
+      );
       return getErrorMessage(fieldState.error);
     },
-    [form],
+    [formContext],
   );
 
   const addLabel = addButtonLabel ?? `Add ${itemLabel}`;
-  const removeLabel = removeButtonLabel ?? DEFAULT_REMOVE_LABEL;
-  const moveUpButtonLabel = moveUpLabel ?? DEFAULT_MOVE_UP_LABEL;
-  const moveDownButtonLabel = moveDownLabel ?? DEFAULT_MOVE_DOWN_LABEL;
+  const removeLabel = removeButtonLabel ?? 'Remove';
+  const moveUpBtnLabel = moveUpLabel ?? 'Move up';
+  const moveDownBtnLabel = moveDownLabel ?? 'Move down';
 
   return (
     <div className={cn('space-y-4', className)} data-repeater>
       <div aria-live="polite" aria-atomic="true" className="sr-only" ref={liveRegionRef} />
 
       {fields.length === 0 ? (
-        <div className="rounded-md border border-dashed border-muted-foreground/40 p-4 text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-muted-foreground/50 p-4 text-sm text-muted-foreground">
           {emptyStateText}
         </div>
       ) : (
         <ul className="space-y-4" role="list">
           {fields.map((field: FieldArrayWithId<TFieldValues, ArrayPath<TFieldValues>>, index) => {
             const itemNumber = index + 1;
-
             return (
               <li
                 key={field.id}
@@ -263,7 +213,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
                     <button
                       type="button"
                       className="rounded-md border border-input px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => handleRemove(index)}
+                      onClick={() => handleRemoveItem(index)}
                       disabled={!canRemove}
                     >
                       {removeLabel}
@@ -271,18 +221,18 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
                     <button
                       type="button"
                       className="rounded-md border border-input px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => handleMove(index, index - 1)}
+                      onClick={() => handleMoveItem(index, index - 1)}
                       disabled={!canReorder || index === 0}
-                      aria-label={`${moveUpButtonLabel} ${itemLabel} ${itemNumber}`}
+                      aria-label={`${moveUpBtnLabel} ${itemLabel} ${itemNumber}`}
                     >
                       ↑
                     </button>
                     <button
                       type="button"
                       className="rounded-md border border-input px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={() => handleMove(index, index + 1)}
+                      onClick={() => handleMoveItem(index, index + 1)}
                       disabled={!canReorder || index === fields.length - 1}
-                      aria-label={`${moveDownButtonLabel} ${itemLabel} ${itemNumber}`}
+                      aria-label={`${moveDownBtnLabel} ${itemLabel} ${itemNumber}`}
                     >
                       ↓
                     </button>
@@ -290,7 +240,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
                 </div>
 
                 <div className="mt-4 space-y-4">
-                  {normalizedItemConfigs.map((config) => {
+                  {itemFieldConfigs.map((cfg) => {
                     const {
                       component,
                       name: itemFieldName,
@@ -303,17 +253,17 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
                       disabled: itemDisabled,
                       readOnly: itemReadOnly,
                       required,
-                      ...restComponentProps
-                    } = config;
+                      ...rest
+                    } = cfg;
 
                     const fieldName = `${name}.${index}.${itemFieldName}`;
-                    const nestedError = getNestedError(fieldName);
+                    const nestedError = getFieldError(fieldName);
 
                     return (
                       <FieldFactory
                         key={`${field.id}-${itemFieldName}`}
                         name={fieldName}
-                        widget={component}
+                        widget={component ?? 'Text'}
                         label={label}
                         placeholder={placeholder}
                         description={description}
@@ -324,7 +274,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
                         required={required}
                         control={resolvedControl as unknown as Control<FieldValues>}
                         options={options}
-                        componentProps={restComponentProps as Record<string, unknown>}
+                        componentProps={rest as Record<string, unknown>}
                         error={nestedError}
                       />
                     );
@@ -340,7 +290,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>({
         <button
           type="button"
           className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-          onClick={handleAdd}
+          onClick={handleAddItem}
           disabled={!canAdd}
           aria-describedby={ariaDescribedBy}
         >
