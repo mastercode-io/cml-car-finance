@@ -11,6 +11,7 @@ import { TextField } from '../components/fields/TextField';
 import { RadioGroupField } from '../components/fields/RadioGroupField';
 import { RatingField } from '../components/fields/RatingField';
 import { SliderField } from '../components/fields/SliderField';
+import { RepeaterField } from '../components/fields/RepeaterField';
 import { CurrencyField } from '../components/fields/specialized/CurrencyField';
 import { EmailField } from '../components/fields/specialized/EmailField';
 import { PhoneField } from '../components/fields/specialized/PhoneField';
@@ -82,6 +83,7 @@ export function initializeFieldRegistry(): FieldRegistry {
       ['Checkbox', { component: CheckboxField as unknown as React.ComponentType<FieldProps> }],
       ['Date', { component: DateField as unknown as React.ComponentType<FieldProps> }],
       ['RadioGroup', { component: RadioGroupField as unknown as React.ComponentType<FieldProps> }],
+      ['Repeater', { component: RepeaterField as unknown as React.ComponentType<FieldProps> }],
       ['FileUpload', { component: FileUploadField as unknown as React.ComponentType<FieldProps> }],
       ['Slider', { component: SliderField as unknown as React.ComponentType<FieldProps> }],
       ['Rating', { component: RatingField as unknown as React.ComponentType<FieldProps> }],

@@ -3,7 +3,7 @@
 Initialized: 2025-09-22 08:00 BST
 
 ## Checklist
-- [ ] P2‑01 — Repeater (arrays)
+- [x] P2‑01 — Repeater (arrays)
 - [ ] P2‑02 — UK Postcode widget (+ AJV format)
 - [ ] P2‑03 — Submission retry & draft recovery
 - [ ] P2‑04 — Session timeout enforcement
@@ -27,6 +27,7 @@ Initialized: 2025-09-22 08:00 BST
 ## Log
 | ID   | Summary | Commit | CI Run | Notes |
 |------|---------|--------|--------|-------|
+| P2‑01 | Repeater (arrays) | b5ddf005bb16dfb5866cb08b591a8841239fa0d7 | local (lint/typecheck/test/build/size) | Rebuilt repeater with leaner field-array wiring, keeping min/max and a11y cues. |
 
 ## CI Summary (latest)
 - Lint: ☐/☑ | Typecheck: ☐/☑ | Tests: ☐/☑ | Build: ☐/☑ | Size: ☐/☑

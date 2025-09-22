@@ -171,4 +171,94 @@ describe('FormRenderer', () => {
       expect(screen.getByText('Conditional Step')).toBeInTheDocument();
     });
   });
+
+  it('handles repeater fields and submits array data', async () => {
+    const schema: UnifiedFormSchema = {
+      $id: 'repeater-form',
+      version: '1.0.0',
+      metadata: {
+        title: 'Repeater Form',
+        description: 'Test form with repeater field',
+        sensitivity: 'low',
+      },
+      steps: [
+        {
+          id: 'household',
+          title: 'Household',
+          schema: {
+            type: 'object',
+            properties: {
+              references: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 3,
+                items: {
+                  type: 'object',
+                  properties: {
+                    fullName: { type: 'string', minLength: 1 },
+                    email: { type: 'string', format: 'email' },
+                  },
+                  required: ['fullName', 'email'],
+                },
+              },
+            },
+            required: ['references'],
+          },
+        },
+      ],
+      transitions: [],
+      ui: {
+        widgets: {
+          references: {
+            component: 'Repeater',
+            label: 'References',
+            itemLabel: 'Reference',
+            minItems: 1,
+            maxItems: 3,
+            addButtonLabel: 'Add reference',
+            removeButtonLabel: 'Remove reference',
+            fields: [
+              { name: 'fullName', component: 'Text', label: 'Full name', required: true },
+              { name: 'email', component: 'Email', label: 'Email address', required: true },
+            ],
+          },
+        },
+      },
+    };
+
+    const onSubmit = jest.fn();
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    expect(await screen.findByText(/reference 1/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByRole('textbox', { name: /full name/i }), {
+      target: { value: 'Test Reference' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /email address/i }), {
+      target: { value: 'ref@example.com' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          references: [
+            expect.objectContaining({
+              fullName: 'Test Reference',
+              email: 'ref@example.com',
+            }),
+          ],
+        }),
+      );
+    });
+  });
 });

@@ -52,4 +52,10 @@ describe('FieldRegistry', () => {
     rerender(<FieldFactory widget="Custom" name="custom" label="Override" />);
     expect(screen.getByText('Override')).toBeInTheDocument();
   });
+
+  it('initializes repeater field in the default registry', () => {
+    const registry = FieldRegistry.getInstance();
+    const repeater = registry.get('Repeater');
+    expect(repeater).toBeDefined();
+  });
 });
