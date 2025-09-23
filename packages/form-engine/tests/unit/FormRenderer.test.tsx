@@ -80,6 +80,12 @@ const buildSchema = (): UnifiedFormSchema => ({
 });
 
 describe('FormRenderer', () => {
+  const originalFlags = process.env.NEXT_PUBLIC_FLAGS;
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_FLAGS = originalFlags;
+  });
+
   it('renders the first step fields by default', async () => {
     const schema = buildSchema();
 
@@ -515,7 +521,9 @@ describe('FormRenderer', () => {
       await waitFor(() => {
         expect(saveDraftMock).toHaveBeenCalledTimes(1);
         expect(
-          screen.getByText(/you appear to be offline\. we saved your progress so you can try again when you reconnect\./i),
+          screen.getByText(
+            /you appear to be offline\. we saved your progress so you can try again when you reconnect\./i,
+          ),
         ).toBeInTheDocument();
       });
     } finally {
@@ -579,5 +587,16 @@ describe('FormRenderer', () => {
       expect(screen.getByText(/restored your saved progress/i)).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /email/i })).toHaveValue('saved@example.com');
     });
+  });
+
+  it('falls back to the single-column layout when the grid flag is disabled', () => {
+    const schema = buildSchema();
+    schema.ui.layout = { type: 'grid' };
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=false';
+
+    const { container } = render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const form = container.querySelector('form');
+    expect(form).toHaveAttribute('data-layout', 'single-column');
   });
 });

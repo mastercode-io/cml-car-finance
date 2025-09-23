@@ -4,6 +4,7 @@ import * as React from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
 import { FieldFactory } from '../components/fields/FieldFactory';
+import { FeaturesProvider, useFlag } from '../context/features';
 import type { JSONSchema, UnifiedFormSchema, ValidationError, WidgetType } from '../types';
 import { TransitionEngine } from '../rules/transition-engine';
 import { VisibilityController } from '../rules/visibility-controller';
@@ -51,7 +52,7 @@ type StepValidationResult = {
   failedStep?: string;
 };
 
-export const FormRenderer: React.FC<FormRendererProps> = ({
+const FormRendererInner: React.FC<FormRendererProps> = ({
   schema,
   initialData,
   onSubmit,
@@ -800,6 +801,11 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     visibilityControllerRef,
   ]);
 
+  const layoutType = schema.ui?.layout?.type ?? 'single-column';
+  const prefersGridLayout = layoutType === 'grid';
+  const isGridLayoutEnabled = useFlag('gridLayout');
+  const activeLayout = prefersGridLayout && isGridLayoutEnabled ? 'grid' : 'single-column';
+
   if (!currentStepSchema || !currentStepConfig || !visibleSteps.length) {
     return null;
   }
@@ -819,7 +825,12 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form className={className} onSubmit={methods.handleSubmit(handleFormSubmit)} noValidate>
+      <form
+        className={className}
+        data-layout={activeLayout}
+        onSubmit={methods.handleSubmit(handleFormSubmit)}
+        noValidate
+      >
         {submissionFeedback ? (
           <div
             role={submissionFeedback.type === 'error' ? 'alert' : 'status'}
@@ -1010,5 +1021,13 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
         </div>
       </form>
     </FormProvider>
+  );
+};
+
+export const FormRenderer: React.FC<FormRendererProps> = (props) => {
+  return (
+    <FeaturesProvider schema={props.schema}>
+      <FormRendererInner {...props} />
+    </FeaturesProvider>
   );
 };

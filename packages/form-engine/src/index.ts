@@ -18,6 +18,8 @@ export { PerformanceDashboard } from './components/PerformanceDashboard';
 
 export { FormRenderer, type FormRendererProps } from './renderer/FormRenderer';
 
+export { FeaturesProvider, useFeatures, useFlag, getDefaultFeatureFlags } from './context/features';
+
 export { RuleBuilder } from './rules/rule-builder';
 export { RuleEvaluator } from './rules/rule-evaluator';
 export { TransitionEngine } from './rules/transition-engine';
