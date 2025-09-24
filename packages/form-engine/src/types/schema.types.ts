@@ -1,4 +1,5 @@
 import type { ComputedField, DataSourceMap } from './computed.types';
+import type { FeatureFlagName } from './features.types';
 import type { JSONSchema } from './json-schema.types';
 import type { Rule, StepTransition } from './rules.types';
 import type { UIDefinition } from './ui.types';
@@ -45,6 +46,7 @@ export interface UnifiedFormSchema {
   computed?: ComputedField[];
   dataSources?: DataSourceMap;
   validation?: ValidationConfig;
+  features?: Partial<Record<FeatureFlagName, boolean>> & { [key: string]: boolean | undefined };
 }
 
 export interface SchemaVersionMeta {

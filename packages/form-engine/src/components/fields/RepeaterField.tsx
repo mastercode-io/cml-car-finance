@@ -83,6 +83,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
   // A11y live region (polite)
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
   const listRef = React.useRef<HTMLUListElement | null>(null);
+  const addButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const clearTimerRef = React.useRef<number | undefined>(undefined);
   const announce = React.useCallback((message: string) => {
     const region = liveRegionRef.current;
@@ -104,9 +105,8 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
   const itemFieldConfigs = React.useMemo(
     () =>
       Array.isArray(itemConfigs)
-        ? itemConfigs.filter(
-            (cfg): cfg is RepeaterItemConfig =>
-              Boolean(cfg && typeof cfg.name === 'string' && cfg.component),
+        ? itemConfigs.filter((cfg): cfg is RepeaterItemConfig =>
+            Boolean(cfg && typeof cfg.name === 'string' && cfg.component),
           )
         : [],
     [itemConfigs],
@@ -177,18 +177,35 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
     focusable?.focus();
   }, []);
 
+  const scheduleFocus = React.useCallback((callback: () => void) => {
+    if (typeof window === 'undefined') {
+      callback();
+      return;
+    }
+
+    const { requestAnimationFrame } = window;
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(callback);
+      });
+      return;
+    }
+
+    window.setTimeout(callback, 0);
+  }, []);
+
+  const focusAddButton = React.useCallback(() => {
+    addButtonRef.current?.focus();
+  }, []);
+
   const handleAddItem = React.useCallback(() => {
     if (!canAdd) return;
     const nextIndex = fields.length;
     append(itemDefaults as FieldArray<TFieldValues, ArrayPath<TFieldValues>>);
     announce(`${itemLabel} ${fields.length + 1} added.`);
-    if (typeof window !== 'undefined') {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          focusItemControl(nextIndex);
-        });
-      });
-    }
+    scheduleFocus(() => {
+      focusItemControl(nextIndex);
+    });
   }, [
     announce,
     append,
@@ -197,15 +214,36 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
     focusItemControl,
     itemDefaults,
     itemLabel,
+    scheduleFocus,
   ]);
 
   const handleRemoveItem = React.useCallback(
     (index: number) => {
       if (!canRemove) return;
+      const previousCount = fields.length;
       remove(index);
       announce(`${itemLabel} ${index + 1} removed.`);
+      const nextCount = previousCount - 1;
+      if (nextCount <= 0) {
+        scheduleFocus(focusAddButton);
+        return;
+      }
+
+      const nextIndex = index >= nextCount ? nextCount - 1 : index;
+      scheduleFocus(() => {
+        focusItemControl(nextIndex);
+      });
     },
-    [canRemove, remove, itemLabel, announce],
+    [
+      announce,
+      canRemove,
+      fields.length,
+      focusAddButton,
+      focusItemControl,
+      itemLabel,
+      remove,
+      scheduleFocus,
+    ],
   );
 
   const handleMoveItem = React.useCallback(
@@ -213,8 +251,12 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
       if (!canReorder) return;
       move(from, to);
       announce(`${itemLabel} ${from + 1} moved to position ${to + 1}.`);
+      const targetIndex = Math.max(0, Math.min(to, fields.length - 1));
+      scheduleFocus(() => {
+        focusItemControl(targetIndex);
+      });
     },
-    [canReorder, move, itemLabel, announce],
+    [announce, canReorder, fields.length, focusItemControl, itemLabel, move, scheduleFocus],
   );
 
   const getFieldError = React.useCallback(
@@ -341,6 +383,7 @@ export const RepeaterField = <TFieldValues extends FieldValues = FieldValues>(
           onClick={handleAddItem}
           disabled={!canAdd}
           aria-describedby={ariaDescribedBy}
+          ref={addButtonRef}
         >
           {addLabel}
         </button>
