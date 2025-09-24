@@ -1,28 +1,30 @@
 # PHASE-3-Tracker.v2 (Revised)
 
-| ID     | Task                                         | Pri | Branch                       | PR # / Link | Status  | CI (fmt/lint/type/test/build/size) | Notes |
-|--------|----------------------------------------------|-----|------------------------------|-------------|---------|------------------------------------|-------|
-| INFRA  | CI scaffolding (lint/type/test/build/size)   | P0  | codex/p3v2-infra-prep        | _pending_   | In Review | ✅ fmt/lint/type/build/size, ❌ test (FormRenderer onSubmit case failing pre-existing) | Installed tooling + size budget config; Jest failure tracked for P3-02 follow-up |
-| P3-00  | Feature flags & staged rollout               | P0  | codex/p3v2-00-feature-flags | pending     | In Review | ✅ fmt/lint/type/test/build/size | Feature flag provider + renderer gating in review |
-| P3-01  | Fix P2 regressions (GIR 0AA, repeater, offline) | P0  | codex/p3v2-01-regressions    | pending     | In Review | ⚠️ lint/type/test/build/size (missing local deps; jest unavailable) | GIR 0AA validation + repeater focus fixes under test |
-| P3-02  | Validation strategy & debounce               | P0  | codex/p3v2-02-validation     | pending     | In Review | ✅ fmt / ⚠️ lint/type/test/build/size (missing eslint, swr, zod-to-json-schema, web-vitals, jest) |
-                           | Debounced onChange validation + strategy coverage |
-| P3-03  | Review step (summary‑only)                   | P0  |                              |             | TODO    |                                    |       |
-| P3-04  | Layout V1 (grid wrapper, flagged + fallback) | P0  |                              |             | TODO    |                                    |       |
-| P3-05  | MultiSelect widget                           | P0  |                              |             | TODO    |                                    |       |
-| P3-06  | Time & DateTime widgets                      | P0  |                              |             | TODO    |                                    |       |
-| P3-07  | UK Address Lookup V1 (flagged)               | P0  |                              |             | TODO    |                                    |       |
-| P3-08  | Analytics KPI hooks & default wiring         | P0  |                              |             | TODO    |                                    |       |
-| P3-09  | Perf budgets & degradation toggles           | P0  |                              |             | TODO    |                                    |       |
-| P3-10  | RadioGroup a11y polish                       | P1  |                              |             | TODO    |                                    |       |
-| P3-11  | Theme tokens → CSS vars                      | P1  |                              |             | TODO    |                                    |       |
-| P3-12  | Select “Add new…” (popover subform)          | P1  |                              |             | TODO    |                                    |       |
-| P3-13  | Schema linter & authoring docs               | P1  |                              |             | TODO    |                                    |       |
+| ID           | Task                                               | Pri | Branch                         | PR # / Link | Status       | CI (fmt/lint/type/test/build/size) | Notes |
+|--------------|----------------------------------------------------|-----|--------------------------------|-------------|--------------|------------------------------------|-------|
+| P3-00        | Feature flags & staged rollout                     | P0  | `codex/p3v2-00-feature-flags` | _pending_   | In Review    | ✅ fmt/lint/type/test/build/size   | Flags provider + renderer gates implemented; defaults OFF in demo. Docs added. |
+| P3-01        | Fix P2 regressions (GIR 0AA, repeater, offline)    | P0  | `codex/p3v2-01-regressions`   | _pending_   | In Progress  | ✅ fmt/lint/type/build · ⚠️ test   | Postcode accepts **GIR 0AA**; Repeater focus mgmt added; offline retry WIP tests. |
+| P3-02        | Validation strategy & debounce                     | P0  | `codex/p3v2-02-validation`    | _pending_   | **Merged**   | ✅ fmt/lint/type/test/build/size   | Debounced `onChange` (120ms) + `onBlur` strategy honored; docs updated. |
+| **P3-NAV-01**| Terminal step semantics (resolver)                 | P0  | `codex/p3v2-nav-01-terminal`  |             | TODO         |                                    | **Prereq for P3-03** |
+| **P3-NAV-02**| Deterministic resolution (guards/default)          | P0  | `codex/p3v2-nav-02-resolver`  |             | TODO         |                                    |       |
+| **P3-NAV-03**| Review freeze + validation policy                   | P0  | `codex/p3v2-nav-03-review`    |             | TODO         |                                    | `nav.reviewFreeze`, `nav.jumpToFirstInvalidOn` |
+| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex/p3v2-nav-04-dedupe`    |             | TODO         |                                    |       |
+| **P3-NAV-05**| Schema linter rules (CI blocking)                   | P0  | `codex/p3v2-nav-05-linter`    |             | TODO         |                                    | dup defaults, cycles, unknown targets |
+| **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     |             | TODO         |                                    | terminal/null, precedence |
+| **P3-NAV-07**| Integration & E2E tests                             | P0  | `codex/p3v2-nav-07-e2e`       |             | TODO         |                                    | Review stays; submit bounce-once |
+| **P3-NAV-08**| Analytics loop detector (P1)                        | P1  | `codex/p3v2-nav-08-analytics` |             | TODO         |                                    | optional, can ship later |
+| P3-03        | Review step (summary-only)                          | P0  |                                |             | BLOCKED      |                                    | **Unblock after P3-NAV** |
+| P3-04        | Layout V1 (grid wrapper, flagged + fallback)        | P0  |                                |             | TODO         |                                    |       |
+| P3-05        | MultiSelect widget                                  | P0  |                                |             | TODO         |                                    |       |
+| P3-06        | Time & DateTime widgets                             | P0  |                                |             | TODO         |                                    |       |
+| P3-07        | UK Address Lookup V1 (flagged)                      | P0  |                                |             | TODO         |                                    |       |
+| P3-08        | Analytics KPI hooks & default wiring                | P0  |                                |             | TODO         |                                    |       |
+| P3-09        | Perf budgets & degradation toggles                  | P0  |                                |             | TODO         |                                    |       |
+| P3-10        | RadioGroup a11y polish                              | P1  |                                |             | TODO         |                                    |       |
+| P3-11        | Theme tokens → CSS vars                             | P1  |                                |             | TODO         |                                    |       |
+| P3-12        | Select “Add new…” (popover subform)                 | P1  |                                |             | TODO         |                                    |       |
+| P3-13        | Schema linter & authoring docs                      | P1  |                                |             | TODO         |                                    |       |
 
 **Legend:** Status = TODO → In Progress → Review → Merged
 
-## Definition of Done (per P0 task)
-- CI green; unit tests present; a11y checks where UI is affected  
-- Flags: introduced with defaults + docs; renderer fallback validated  
-- KPI/perf events visible in dev; redaction verified  
-- Tracker updated with branch, PR, CI results and a short test note
+_Last updated: 2025-09-24 21:30:47Z_
