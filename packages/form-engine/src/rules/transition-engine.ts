@@ -20,10 +20,6 @@ export class TransitionEngine {
   ): string | null {
     const transitions = schema.transitions.filter((transition) => transition.from === currentStep);
 
-    if (transitions.length === 0) {
-      return this.getDefaultNextStep(schema, currentStep);
-    }
-
     const sorted = [...transitions].sort((a, b) => {
       if (a.default && !b.default) return 1;
       if (!a.default && b.default) return -1;
@@ -143,14 +139,4 @@ export class TransitionEngine {
     return this.visibility.getVisibleSteps(schema, data, context);
   }
 
-  private getDefaultNextStep(schema: UnifiedFormSchema, currentStep: string): string | null {
-    const steps = schema.steps;
-    const currentIndex = steps.findIndex((step) => step.id === currentStep);
-
-    if (currentIndex >= 0 && currentIndex < steps.length - 1) {
-      return steps[currentIndex + 1].id;
-    }
-
-    return null;
-  }
 }
