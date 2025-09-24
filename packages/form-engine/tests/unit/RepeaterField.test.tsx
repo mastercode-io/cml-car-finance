@@ -18,7 +18,8 @@ describe('RepeaterField', () => {
   const Wrapper: React.FC<{
     defaultValues?: FormValues;
     onReady?: (methods: UseFormReturn<FormValues>) => void;
-  }> = ({ defaultValues, onReady }) => {
+    componentOverrides?: { minItems?: number; maxItems?: number };
+  }> = ({ defaultValues, onReady, componentOverrides }) => {
     const methods = useForm<FormValues>({ defaultValues });
 
     React.useEffect(() => {
@@ -41,6 +42,7 @@ describe('RepeaterField', () => {
               { name: 'fullName', component: 'Text', label: 'Full name', required: true },
               { name: 'email', component: 'Email', label: 'Email address', required: true },
             ],
+            ...componentOverrides,
           }}
         />
       </FormProvider>
@@ -94,6 +96,99 @@ describe('RepeaterField', () => {
 
     const nameInputs = await screen.findAllByRole('textbox', { name: /full name/i });
     expect(nameInputs[0]).toHaveValue('Brian Example');
+  });
+
+  it('focuses the newly added item when appended', async () => {
+    render(<Wrapper defaultValues={{ references: [] }} />);
+
+    const addButton = await screen.findByRole('button', { name: /add reference/i });
+
+    act(() => {
+      fireEvent.click(addButton);
+    });
+
+    const nameInputs = await screen.findAllByRole('textbox', { name: /full name/i });
+
+    await waitFor(() => {
+      expect(nameInputs).toHaveLength(2);
+      expect(document.activeElement).toBe(nameInputs[1]);
+    });
+  });
+
+  it('focuses the next item when one is removed', async () => {
+    render(
+      <Wrapper
+        defaultValues={{
+          references: [
+            { fullName: 'Alice Example', email: 'alice@example.com' },
+            { fullName: 'Brian Example', email: 'brian@example.com' },
+          ],
+        }}
+      />,
+    );
+
+    const removeButtons = await screen.findAllByRole('button', { name: /remove reference/i });
+
+    act(() => {
+      fireEvent.click(removeButtons[0]);
+    });
+
+    const remainingInput = await screen.findByRole('textbox', { name: /full name/i });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(remainingInput);
+    });
+  });
+
+  it('returns focus to the add button when the last item is removed', async () => {
+    render(
+      <Wrapper
+        defaultValues={{
+          references: [{ fullName: 'Solo Example', email: 'solo@example.com' }],
+        }}
+        componentOverrides={{ minItems: 0 }}
+      />,
+    );
+
+    const addButton = await screen.findByRole('button', { name: /add reference/i });
+    const removeButton = await screen.findByRole('button', { name: /remove reference/i });
+
+    act(() => {
+      fireEvent.click(removeButton);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/^Reference 1$/i)).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(addButton);
+    });
+  });
+
+  it('keeps focus on the moved item after reordering', async () => {
+    render(
+      <Wrapper
+        defaultValues={{
+          references: [
+            { fullName: 'Alice Example', email: 'alice@example.com' },
+            { fullName: 'Brian Example', email: 'brian@example.com' },
+          ],
+        }}
+      />,
+    );
+
+    const moveDownButton = await screen.findByRole('button', { name: /move down reference 1/i });
+
+    act(() => {
+      fireEvent.click(moveDownButton);
+    });
+
+    const movedInput = await screen.findByDisplayValue('Alice Example');
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(movedInput);
+    });
   });
 
   it('surfaces nested validation errors', async () => {

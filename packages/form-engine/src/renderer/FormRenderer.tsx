@@ -4,6 +4,7 @@ import * as React from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
 import { FieldFactory } from '../components/fields/FieldFactory';
+import { FeaturesProvider, useFlag } from '../context/features';
 import type { JSONSchema, UnifiedFormSchema, ValidationError, WidgetType } from '../types';
 import { TransitionEngine } from '../rules/transition-engine';
 import { VisibilityController } from '../rules/visibility-controller';
@@ -21,6 +22,7 @@ import {
   resolveStepSchema,
   scrollToFirstError,
 } from './utils';
+import { useResolvedValidation, useValidationStrategyEffects } from './useValidation';
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -51,7 +53,7 @@ type StepValidationResult = {
   failedStep?: string;
 };
 
-export const FormRenderer: React.FC<FormRendererProps> = ({
+const FormRendererInner: React.FC<FormRendererProps> = ({
   schema,
   initialData,
   onSubmit,
@@ -69,6 +71,11 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   const currentStepSchemaRef = React.useRef<JSONSchema | undefined>(undefined);
   const persistenceRef = React.useRef<PersistenceManager | null>(null);
   const persistencePromiseRef = React.useRef<Promise<PersistenceManager | null> | null>(null);
+
+  const { config: validationConfig, modes: validationModes } = useResolvedValidation(schema);
+  const validationStrategy = validationConfig.strategy;
+  const validationDebounceMs = validationConfig.debounceMs;
+  const shouldValidateOnStepChange = validationModes.validateOnStepChange;
 
   const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
   const [stepHistory, setStepHistory] = React.useState<string[]>([]);
@@ -119,10 +126,12 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   const methods = useForm({
     defaultValues: resolvedInitialData,
     resolver,
-    mode: 'onChange',
-    reValidateMode: 'onChange',
+    mode: validationModes.mode,
+    reValidateMode: validationModes.reValidateMode,
     shouldUnregister: false,
   });
+
+  useValidationStrategyEffects(methods, validationStrategy, validationDebounceMs);
 
   const { reset } = methods;
 
@@ -336,6 +345,10 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
   }, []);
 
   const validateCurrentStep = React.useCallback(async () => {
+    if (!shouldValidateOnStepChange) {
+      return true;
+    }
+
     if (!currentStepSchema || !currentStepId) {
       return true;
     }
@@ -347,7 +360,14 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
       markStepError(currentStepId);
     }
     return isValid;
-  }, [clearStepError, currentStepId, currentStepSchema, markStepError, methods]);
+  }, [
+    clearStepError,
+    currentStepId,
+    currentStepSchema,
+    markStepError,
+    methods,
+    shouldValidateOnStepChange,
+  ]);
 
   const validateAllSteps = React.useCallback(
     async (data: Record<string, unknown>): Promise<StepValidationResult> => {
@@ -800,6 +820,11 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
     visibilityControllerRef,
   ]);
 
+  const layoutType = schema.ui?.layout?.type ?? 'single-column';
+  const prefersGridLayout = layoutType === 'grid';
+  const isGridLayoutEnabled = useFlag('gridLayout');
+  const activeLayout = prefersGridLayout && isGridLayoutEnabled ? 'grid' : 'single-column';
+
   if (!currentStepSchema || !currentStepConfig || !visibleSteps.length) {
     return null;
   }
@@ -819,7 +844,12 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form className={className} onSubmit={methods.handleSubmit(handleFormSubmit)} noValidate>
+      <form
+        className={className}
+        data-layout={activeLayout}
+        onSubmit={methods.handleSubmit(handleFormSubmit)}
+        noValidate
+      >
         {submissionFeedback ? (
           <div
             role={submissionFeedback.type === 'error' ? 'alert' : 'status'}
@@ -1010,5 +1040,13 @@ export const FormRenderer: React.FC<FormRendererProps> = ({
         </div>
       </form>
     </FormProvider>
+  );
+};
+
+export const FormRenderer: React.FC<FormRendererProps> = (props) => {
+  return (
+    <FeaturesProvider schema={props.schema}>
+      <FormRendererInner {...props} />
+    </FeaturesProvider>
   );
 };
