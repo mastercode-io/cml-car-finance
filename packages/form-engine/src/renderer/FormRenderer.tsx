@@ -22,6 +22,7 @@ import {
   resolveStepSchema,
   scrollToFirstError,
 } from './utils';
+import { useResolvedValidation, useValidationStrategyEffects } from './useValidation';
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -70,6 +71,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const currentStepSchemaRef = React.useRef<JSONSchema | undefined>(undefined);
   const persistenceRef = React.useRef<PersistenceManager | null>(null);
   const persistencePromiseRef = React.useRef<Promise<PersistenceManager | null> | null>(null);
+
+  const { config: validationConfig, modes: validationModes } = useResolvedValidation(schema);
+  const validationStrategy = validationConfig.strategy;
+  const validationDebounceMs = validationConfig.debounceMs;
+  const shouldValidateOnStepChange = validationModes.validateOnStepChange;
 
   const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
   const [stepHistory, setStepHistory] = React.useState<string[]>([]);
@@ -120,10 +126,12 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const methods = useForm({
     defaultValues: resolvedInitialData,
     resolver,
-    mode: 'onChange',
-    reValidateMode: 'onChange',
+    mode: validationModes.mode,
+    reValidateMode: validationModes.reValidateMode,
     shouldUnregister: false,
   });
+
+  useValidationStrategyEffects(methods, validationStrategy, validationDebounceMs);
 
   const { reset } = methods;
 
@@ -337,6 +345,10 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   }, []);
 
   const validateCurrentStep = React.useCallback(async () => {
+    if (!shouldValidateOnStepChange) {
+      return true;
+    }
+
     if (!currentStepSchema || !currentStepId) {
       return true;
     }
@@ -348,7 +360,14 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       markStepError(currentStepId);
     }
     return isValid;
-  }, [clearStepError, currentStepId, currentStepSchema, markStepError, methods]);
+  }, [
+    clearStepError,
+    currentStepId,
+    currentStepSchema,
+    markStepError,
+    methods,
+    shouldValidateOnStepChange,
+  ]);
 
   const validateAllSteps = React.useCallback(
     async (data: Record<string, unknown>): Promise<StepValidationResult> => {

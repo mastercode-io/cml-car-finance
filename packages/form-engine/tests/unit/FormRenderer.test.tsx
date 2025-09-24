@@ -108,6 +108,76 @@ describe('FormRenderer', () => {
     });
   });
 
+  it('defaults to blur-driven validation when no strategy is provided', async () => {
+    const schema = buildSchema();
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const firstName = await screen.findByRole('textbox', { name: /first name/i });
+    fireEvent.change(firstName, { target: { value: 'J' } });
+    fireEvent.change(firstName, { target: { value: '' } });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    fireEvent.blur(firstName);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('debounces on-change validation when debounceMs is provided', async () => {
+    jest.useFakeTimers();
+    const schema = buildSchema();
+    schema.validation = { strategy: 'onChange', debounceMs: 200 };
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const firstName = await screen.findByRole('textbox', { name: /first name/i });
+    fireEvent.change(firstName, { target: { value: 'A' } });
+    fireEvent.change(firstName, { target: { value: '' } });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(199);
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('defers validation until submit when strategy is onSubmit', async () => {
+    const schema = buildSchema();
+    schema.validation = { strategy: 'onSubmit' };
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    expect(await screen.findByRole('textbox', { name: /first name/i })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+      expect(screen.getByRole('textbox', { name: /first name/i })).toBeInTheDocument();
+    });
+  });
+
   it('navigates to the next step when the current step is valid', async () => {
     const schema = buildSchema();
 
