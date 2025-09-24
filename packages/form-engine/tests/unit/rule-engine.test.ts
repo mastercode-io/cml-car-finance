@@ -120,6 +120,12 @@ describe('TransitionEngine', () => {
     const next = engine.getNextStep(schema, 'step1', { skip: 'maybe' });
     expect(next).toBe('step2');
   });
+
+  it('returns null when the current step has no outgoing transitions', () => {
+    const engine = new TransitionEngine();
+    const next = engine.getNextStep(schema, 'step3', {});
+    expect(next).toBeNull();
+  });
 });
 
 describe('XStateAdapter', () => {
