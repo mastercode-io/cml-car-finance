@@ -6,6 +6,7 @@
 | P3-01  | Fix P2 regressions (GIR 0AA, repeater, offline) | P0  | codex/p3v2-01-regressions    | pending     | In Review | ⚠️ lint/type/test/build/size (missing local deps; jest unavailable) | GIR 0AA validation + repeater focus fixes under test |
 | P3-02  | Validation strategy & debounce               | P0  | codex/p3v2-02-validation     | pending     | In Review | ✅ fmt / ⚠️ lint/type/test/build/size (missing eslint, swr, zod-to-json-schema, web-vitals, jest) |
                            | Debounced onChange validation + strategy coverage |
+| P3-03  | Review step (summary‑only)                   | P0  |                              |             | TODO    |                                    |       |
 | P3-04  | Layout V1 (grid wrapper, flagged + fallback) | P0  |                              |             | TODO    |                                    |       |
 | P3-05  | MultiSelect widget                           | P0  |                              |             | TODO    |                                    |       |
 | P3-06  | Time & DateTime widgets                      | P0  |                              |             | TODO    |                                    |       |
