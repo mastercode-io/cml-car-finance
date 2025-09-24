@@ -2,6 +2,7 @@
 
 | ID     | Task                                         | Pri | Branch                       | PR # / Link | Status  | CI (fmt/lint/type/test/build/size) | Notes |
 |--------|----------------------------------------------|-----|------------------------------|-------------|---------|------------------------------------|-------|
+| INFRA  | CI scaffolding (lint/type/test/build/size)   | P0  | codex/p3v2-infra-prep        | _pending_   | In Review | ✅ fmt/lint/type/build/size, ❌ test (FormRenderer onSubmit case failing pre-existing) | Installed tooling + size budget config; Jest failure tracked for P3-02 follow-up |
 | P3-00  | Feature flags & staged rollout               | P0  | codex/p3v2-00-feature-flags | pending     | In Review | ✅ fmt/lint/type/test/build/size | Feature flag provider + renderer gating in review |
 | P3-01  | Fix P2 regressions (GIR 0AA, repeater, offline) | P0  | codex/p3v2-01-regressions    | pending     | In Review | ⚠️ lint/type/test/build/size (missing local deps; jest unavailable) | GIR 0AA validation + repeater focus fixes under test |
 | P3-02  | Validation strategy & debounce               | P0  | codex/p3v2-02-validation     | pending     | In Review | ✅ fmt / ⚠️ lint/type/test/build/size (missing eslint, swr, zod-to-json-schema, web-vitals, jest) |
