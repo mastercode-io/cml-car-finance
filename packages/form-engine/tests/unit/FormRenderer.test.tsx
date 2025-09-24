@@ -80,6 +80,12 @@ const buildSchema = (): UnifiedFormSchema => ({
 });
 
 describe('FormRenderer', () => {
+  const originalFlags = process.env.NEXT_PUBLIC_FLAGS;
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_FLAGS = originalFlags;
+  });
+
   it('renders the first step fields by default', async () => {
     const schema = buildSchema();
 
@@ -515,12 +521,52 @@ describe('FormRenderer', () => {
       await waitFor(() => {
         expect(saveDraftMock).toHaveBeenCalledTimes(1);
         expect(
-          screen.getByText(/you appear to be offline\. we saved your progress so you can try again when you reconnect\./i),
+          screen.getByText(
+            /you appear to be offline\. we saved your progress so you can try again when you reconnect\./i,
+          ),
         ).toBeInTheDocument();
       });
     } finally {
       onlineSpy.mockRestore();
     }
+  });
+
+  it('treats network type errors as offline even when navigator reports online', async () => {
+    const schema = buildSchema();
+    const offlineError = new TypeError('NetworkError when attempting to fetch resource.');
+    const onSubmit = jest.fn().mockRejectedValue(offlineError);
+
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Network' },
+    });
+    fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Error' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+    await waitFor(() => {
+      fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+        target: { value: 'network@example.com' },
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(saveDraftMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByText(
+          /you appear to be offline\. we saved your progress so you can try again when you reconnect\./i,
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it('locks controls when the session expires and supports restarting', async () => {
@@ -579,5 +625,16 @@ describe('FormRenderer', () => {
       expect(screen.getByText(/restored your saved progress/i)).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /email/i })).toHaveValue('saved@example.com');
     });
+  });
+
+  it('falls back to the single-column layout when the grid flag is disabled', () => {
+    const schema = buildSchema();
+    schema.ui.layout = { type: 'grid' };
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=false';
+
+    const { container } = render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const form = container.querySelector('form');
+    expect(form).toHaveAttribute('data-layout', 'single-column');
   });
 });

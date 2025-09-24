@@ -39,6 +39,15 @@ describe('PostcodeField', () => {
     expect(input).toHaveValue('GIR 0AA');
   });
 
+  it('trims whitespace and normalizes casing for GIR 0AA', () => {
+    render(<PostcodeField name="postcode" />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '  gir 0aa  ' } });
+
+    expect(input).toHaveValue('GIR 0AA');
+  });
+
   it('works with react-hook-form control and submits formatted values', async () => {
     const handleSubmit = jest.fn();
 
