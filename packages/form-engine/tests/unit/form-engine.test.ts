@@ -205,16 +205,21 @@ describe('ValidationEngine', () => {
       },
     };
 
-    const success = await engine.validate(schema, {
+    const spaced = await engine.validate(schema, {
       postcode: 'GIR 0AA',
       legacyPostcode: 'GIR 0AA',
+    });
+    const compact = await engine.validate(schema, {
+      postcode: 'GIR0AA',
+      legacyPostcode: 'gir0aa',
     });
     const failure = await engine.validate(schema, {
       postcode: 'INVALID',
       legacyPostcode: '12345',
     });
 
-    expect(success.valid).toBe(true);
+    expect(spaced.valid).toBe(true);
+    expect(compact.valid).toBe(true);
     expect(failure.valid).toBe(false);
   });
 

@@ -531,6 +531,44 @@ describe('FormRenderer', () => {
     }
   });
 
+  it('treats network type errors as offline even when navigator reports online', async () => {
+    const schema = buildSchema();
+    const offlineError = new TypeError('NetworkError when attempting to fetch resource.');
+    const onSubmit = jest.fn().mockRejectedValue(offlineError);
+
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Network' },
+    });
+    fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Error' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+    await waitFor(() => {
+      fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+        target: { value: 'network@example.com' },
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(saveDraftMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByText(
+          /you appear to be offline\. we saved your progress so you can try again when you reconnect\./i,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   it('locks controls when the session expires and supports restarting', async () => {
     jest.useFakeTimers();
 
