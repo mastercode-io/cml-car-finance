@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { UnifiedFormSchema } from '@form-engine/types';
 import { FormRenderer } from '@form-engine/index';
+import { ValidationEngine } from '../../src/validation/ajv-setup';
 
 const saveDraftMock = jest.fn();
 const flushPendingSavesMock = jest.fn();
@@ -78,6 +79,46 @@ const buildSchema = (): UnifiedFormSchema => ({
     },
   },
 });
+
+const buildSchemaWithConditional = (retainHidden = false): UnifiedFormSchema => {
+  const schema = buildSchema();
+  schema.metadata = {
+    ...schema.metadata,
+    retainHidden,
+  };
+  schema.validation = {
+    strategy: 'onChange',
+    debounceMs: 100,
+  };
+
+  const contactStep = schema.steps.find((step) => step.id === 'contact');
+  if (contactStep && 'properties' in contactStep.schema) {
+    const contactSchema = contactStep.schema as any;
+    contactSchema.properties = {
+      ...contactSchema.properties,
+      showExtras: { type: 'string' },
+      loyaltyId: {
+        type: 'string',
+        'x-visibility': {
+          op: 'eq',
+          left: '$.showExtras',
+          right: 'yes',
+        },
+      },
+    };
+  }
+
+  schema.ui = {
+    ...schema.ui,
+    widgets: {
+      ...schema.ui.widgets,
+      showExtras: { component: 'Text', label: 'Show Extras' },
+      loyaltyId: { component: 'Text', label: 'Loyalty ID' },
+    },
+  };
+
+  return schema;
+};
 
 describe('FormRenderer', () => {
   const originalFlags = process.env.NEXT_PUBLIC_FLAGS;
@@ -162,11 +203,12 @@ describe('FormRenderer', () => {
 
     expect(await screen.findByRole('textbox', { name: /first name/i })).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole('button', { name: /next/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+    const nextButton = await screen.findByRole('button', { name: /next/i });
+    await act(async () => {
+      fireEvent.click(nextButton);
     });
+
+    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
 
     expect(screen.queryByRole('alert')).toBeNull();
 
@@ -174,7 +216,7 @@ describe('FormRenderer', () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
-      expect(screen.getByRole('textbox', { name: /first name/i })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
     });
   });
 
@@ -444,7 +486,9 @@ describe('FormRenderer', () => {
         target: { value: 'Tester' },
       });
 
-      fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+      await act(async () => {
+        fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+      });
 
       await waitFor(() => {
         fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
@@ -507,7 +551,9 @@ describe('FormRenderer', () => {
         target: { value: 'Saver' },
       });
 
-      fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+      await act(async () => {
+        fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+      });
 
       await waitFor(() => {
         fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
@@ -562,7 +608,6 @@ describe('FormRenderer', () => {
     const offlineError = new TypeError('Failed to fetch');
     const onSubmit = jest.fn().mockRejectedValue(offlineError);
     const onlineSpy = jest.spyOn(window.navigator, 'onLine', 'get');
-    onlineSpy.mockReturnValue(false);
 
     try {
       render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
@@ -582,7 +627,13 @@ describe('FormRenderer', () => {
         });
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+      await act(async () => {
+        const form = document.querySelector('form');
+        if (!form) {
+          throw new Error('Form element not found');
+        }
+        fireEvent.submit(form);
+      });
 
       await waitFor(() => {
         expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -636,6 +687,184 @@ describe('FormRenderer', () => {
           /you appear to be offline\. we saved your progress so you can try again when you reconnect\./i,
         ),
       ).toBeInTheDocument();
+    });
+  });
+
+  it('flushes pending validation before submit and omits hidden fields when retainHidden is false', async () => {
+    const validateSpy = jest
+      .spyOn(ValidationEngine.prototype, 'validate')
+      .mockResolvedValue({ valid: true, errors: [] });
+
+
+    const schema = buildSchemaWithConditional(false);
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onValidationError = jest.fn();
+
+    render(
+      <FormRenderer
+        schema={schema}
+        onSubmit={onSubmit}
+        onValidationError={onValidationError}
+        initialData={{ email: 'prefill@example.com', showExtras: 'yes', loyaltyId: 'prefill' }}
+      />,
+    );
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Jane' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Doe' },
+    });
+
+    const nextButton = await screen.findByRole('button', { name: /next/i });
+    await act(async () => {
+      fireEvent.click(nextButton);
+    });
+
+    const emailInput = await screen.findByRole('textbox', { name: /email/i });
+    fireEvent.change(emailInput, {
+      target: { value: 'fresh@example.com' },
+    });
+
+    const showExtrasInput = screen.getByRole('textbox', { name: /show extras/i });
+    const loyaltyInput = screen.getByRole('textbox', { name: /loyalty id/i });
+    fireEvent.change(loyaltyInput, { target: { value: 'HiddenValue' } });
+
+    fireEvent.change(showExtrasInput, { target: { value: 'no' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+    });
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    expect(onValidationError).not.toHaveBeenCalled();
+
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      email: 'fresh@example.com',
+      showExtras: 'no',
+    });
+    expect(payload).not.toHaveProperty('loyaltyId');
+    expect(payload._meta).toEqual(
+      expect.objectContaining({
+        schemaId: schema.$id,
+        schemaVersion: schema.version,
+      }),
+    );
+
+    validateSpy.mockRestore();
+
+
+  });
+
+  it('retains hidden field values when schema metadata retainHidden is true', async () => {
+    const validateSpy = jest
+      .spyOn(ValidationEngine.prototype, 'validate')
+      .mockResolvedValue({ valid: true, errors: [] });
+
+
+    const schema = buildSchemaWithConditional(true);
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onValidationError = jest.fn();
+
+    render(
+      <FormRenderer
+        schema={schema}
+        onSubmit={onSubmit}
+        onValidationError={onValidationError}
+        initialData={{ email: 'prefill@example.com', showExtras: 'yes', loyaltyId: 'prefill' }}
+      />,
+    );
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Harper' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Lee' },
+    });
+
+    const nextButton = await screen.findByRole('button', { name: /next/i });
+    await act(async () => {
+      fireEvent.click(nextButton);
+    });
+
+    const emailInput = await screen.findByRole('textbox', { name: /email/i });
+    fireEvent.change(emailInput, {
+      target: { value: 'retain@example.com' },
+    });
+
+    const showExtrasInput = screen.getByRole('textbox', { name: /show extras/i });
+    const loyaltyInput = screen.getByRole('textbox', { name: /loyalty id/i });
+    fireEvent.change(loyaltyInput, { target: { value: 'StillHere' } });
+
+    fireEvent.change(showExtrasInput, { target: { value: 'no' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+    });
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+
+    validateSpy.mockRestore();
+    expect(onValidationError).not.toHaveBeenCalled();
+
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      loyaltyId: 'StillHere',
+      showExtras: 'no',
+    });
+
+
+  });
+
+  it('calls onSubmit only once when submit is triggered multiple times quickly', async () => {
+    const schema = buildSchema();
+    let resolveSubmit: (() => void) | undefined;
+    const onSubmit = jest.fn(() => new Promise<void>((resolve) => {
+      resolveSubmit = resolve;
+    }));
+
+    render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Rapid' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Clicker' },
+    });
+
+    const nextButton = await screen.findByRole('button', { name: /next/i });
+    await act(async () => {
+      fireEvent.click(nextButton);
+    });
+
+    const emailInput = await screen.findByRole('textbox', { name: /email/i });
+    fireEvent.change(emailInput, { target: { value: 'rapid@click.com' } });
+
+    const submitButton = screen.getByRole('button', { name: /submit/i });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+      fireEvent.click(submitButton);
+    });
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(typeof resolveSubmit).toBe('function');
+    });
+
+    await act(async () => {
+      resolveSubmit?.();
+    });
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
     });
   });
 

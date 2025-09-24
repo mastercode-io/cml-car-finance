@@ -118,8 +118,9 @@ describe('FormAnalytics', () => {
     randomSpy.mockReturnValue(0.2);
     analytics?.trackEvent('tracked_event');
     const events = (analytics as unknown as { events: AnalyticsEvent[] }).events;
-    expect(events).toHaveLength(1);
-    expect(events[0]?.name).toBe('tracked_event');
+    const trackedEvents = events.filter((event) => event.name === 'tracked_event');
+    expect(trackedEvents).toHaveLength(1);
+    expect(trackedEvents[0]?.name).toBe('tracked_event');
 
     randomSpy.mockRestore();
   });

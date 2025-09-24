@@ -37,6 +37,49 @@ const formatDuration = (ms: number): string => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
+type SubmissionSummaryOptions = {
+  schema: UnifiedFormSchema;
+  visibleSteps: string[];
+  retainHidden: boolean;
+  visibilityController: VisibilityController;
+};
+
+const buildSubmissionSummary = (
+  values: Record<string, unknown>,
+  { schema, visibleSteps, retainHidden, visibilityController }: SubmissionSummaryOptions,
+): Record<string, unknown> => {
+  const sanitizedValues = { ...values };
+  delete sanitizedValues._meta;
+
+  if (retainHidden) {
+    return sanitizedValues;
+  }
+
+  const schemaFields = new Set<string>();
+  schema.steps.forEach((step) => {
+    const stepSchema = resolveStepSchema(step, schema);
+    Object.keys(stepSchema.properties ?? {}).forEach((field) => {
+      schemaFields.add(field);
+    });
+  });
+
+  const visibleFieldSet = new Set<string>();
+  visibleSteps.forEach((stepId) => {
+    visibilityController
+      .getVisibleFields(schema, stepId, sanitizedValues)
+      .forEach((field) => visibleFieldSet.add(field));
+  });
+
+  const summary: Record<string, unknown> = {};
+  Object.keys(sanitizedValues).forEach((key) => {
+    if (visibleFieldSet.has(key) || !schemaFields.has(key)) {
+      summary[key] = sanitizedValues[key];
+    }
+  });
+
+  return summary;
+};
+
 export interface FormRendererProps {
   schema: UnifiedFormSchema;
   initialData?: Record<string, unknown>;
@@ -106,6 +149,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     sessionTimeoutMs > 0 ? sessionTimeoutMs : null,
   );
   const [isSessionExpired, setSessionExpired] = React.useState(false);
+  const submitInFlightRef = React.useRef(false);
 
   const resolver = React.useCallback(
     async (values: Record<string, unknown>, context: any, options: any) => {
@@ -131,7 +175,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     shouldUnregister: false,
   });
 
-  useValidationStrategyEffects(methods, validationStrategy, validationDebounceMs);
+  const flushPendingValidation = useValidationStrategyEffects(
+    methods,
+    validationStrategy,
+    validationDebounceMs,
+  );
 
   const { reset } = methods;
 
@@ -480,107 +528,138 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     return false;
   }, []);
 
-  const handleFormSubmit = React.useCallback(
-    async (data: Record<string, unknown>) => {
-      if (isSessionExpired) {
-        setSubmissionFeedback({
-          type: 'error',
-          message: 'Your session expired. Start a new session to submit the form.',
-        });
+  const handleFormSubmit = React.useCallback(async () => {
+    if (isSessionExpired) {
+      setSubmissionFeedback({
+        type: 'error',
+        message: 'Your session expired. Start a new session to submit the form.',
+      });
+      return;
+    }
+
+    if (submitInFlightRef.current) {
+      return;
+    }
+
+    submitInFlightRef.current = true;
+    setSubmitting(true);
+    setSubmissionFeedback(null);
+    try {
+      await flushPendingValidation();
+
+      const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
+      if (!isFormValid) {
+        scrollToFirstError();
+        onValidationError?.(methods.formState.errors);
         return;
       }
 
-      setSubmitting(true);
-      setSubmissionFeedback(null);
-      try {
-        const { valid, failedStep } = await validateAllSteps(data);
-        if (!valid) {
-          if (failedStep) {
-            const failedIndex = visibleSteps.indexOf(failedStep);
-            if (failedIndex >= 0) {
-              setCurrentStepIndex(failedIndex);
-            }
+      const values = methods.getValues();
+      const { valid, failedStep } = await validateAllSteps(values);
+      if (!valid) {
+        if (failedStep) {
+          const failedIndex = visibleSteps.indexOf(failedStep);
+          if (failedIndex >= 0) {
+            setCurrentStepIndex(failedIndex);
           }
-          scrollToFirstError();
-          onValidationError?.(methods.formState.errors);
+        }
+        scrollToFirstError();
+        onValidationError?.(methods.formState.errors);
+        return;
+      }
+
+      const summaryValues = buildSubmissionSummary(values, {
+        schema,
+        visibleSteps,
+        retainHidden: schema.metadata?.retainHidden === true,
+        visibilityController: visibilityControllerRef.current,
+      });
+
+      const submissionData = {
+        ...summaryValues,
+        _meta: {
+          schemaId: schema.$id,
+          schemaVersion: schema.version,
+          submittedAt: new Date().toISOString(),
+          completedSteps: visibleSteps,
+        },
+      };
+
+      const maxAttempts = 3;
+      const baseDelay = 500;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          await onSubmit(submissionData);
+          setCompletedSteps((prev) => Array.from(new Set([...prev, ...visibleSteps])));
+          setSubmissionFeedback(null);
+          return;
+        } catch (error) {
+          const offline = isOfflineError(error);
+          const status = getErrorStatus(error);
+          const retryable =
+            typeof status === 'number'
+              ? status === 429 || (status >= 500 && status < 600)
+              : false;
+
+          if (attempt < maxAttempts && retryable && !offline) {
+            setSubmissionFeedback({
+              type: 'info',
+              message: `Submission failed (attempt ${attempt} of ${maxAttempts}). Retrying…`,
+            });
+            const delay = baseDelay * 2 ** (attempt - 1);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          const draftSaved = await saveDraftAfterFailure(values);
+          if (offline) {
+            setSubmissionFeedback({
+              type: 'error',
+              message: draftSaved
+                ? 'You appear to be offline. We saved your progress so you can try again when you reconnect.'
+                : 'You appear to be offline. Check your connection and try again when you are back online.',
+            });
+            console.error('Form submission failed (offline)', error);
+          } else {
+            setSubmissionFeedback({
+              type: 'error',
+              message: draftSaved
+                ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
+                : 'We were unable to submit your form. Please try again shortly.',
+            });
+            console.error('Form submission failed', error);
+          }
           return;
         }
-
-        const submissionData = {
-          ...data,
-          _meta: {
-            schemaId: schema.$id,
-            schemaVersion: schema.version,
-            submittedAt: new Date().toISOString(),
-            completedSteps: visibleSteps,
-          },
-        };
-
-        const maxAttempts = 3;
-        const baseDelay = 500;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-          try {
-            await onSubmit(submissionData);
-            setCompletedSteps((prev) => Array.from(new Set([...prev, ...visibleSteps])));
-            setSubmissionFeedback(null);
-            return;
-          } catch (error) {
-            const offline = isOfflineError(error);
-            const status = getErrorStatus(error);
-            const retryable =
-              typeof status === 'number'
-                ? status === 429 || (status >= 500 && status < 600)
-                : false;
-
-            if (attempt < maxAttempts && retryable && !offline) {
-              setSubmissionFeedback({
-                type: 'info',
-                message: `Submission failed (attempt ${attempt} of ${maxAttempts}). Retrying…`,
-              });
-              const delay = baseDelay * 2 ** (attempt - 1);
-              await new Promise((resolve) => setTimeout(resolve, delay));
-              continue;
-            }
-
-            const draftSaved = await saveDraftAfterFailure(data);
-            if (offline) {
-              setSubmissionFeedback({
-                type: 'error',
-                message: draftSaved
-                  ? 'You appear to be offline. We saved your progress so you can try again when you reconnect.'
-                  : 'You appear to be offline. Check your connection and try again when you are back online.',
-              });
-              console.error('Form submission failed (offline)', error);
-            } else {
-              setSubmissionFeedback({
-                type: 'error',
-                message: draftSaved
-                  ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
-                  : 'We were unable to submit your form. Please try again shortly.',
-              });
-              console.error('Form submission failed', error);
-            }
-            return;
-          }
-        }
-      } finally {
-        setSubmitting(false);
       }
+    } finally {
+      submitInFlightRef.current = false;
+      setSubmitting(false);
+    }
+  }, [
+    flushPendingValidation,
+    getErrorStatus,
+    isOfflineError,
+    isSessionExpired,
+    methods,
+    methods.formState.errors,
+    onSubmit,
+    onValidationError,
+    saveDraftAfterFailure,
+    schema,
+    setCurrentStepIndex,
+    validateAllSteps,
+    visibleSteps,
+  ]);
+
+  const handleSubmitEvent = React.useCallback(
+    (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      event?.stopPropagation();
+      void handleFormSubmit();
     },
-    [
-      getErrorStatus,
-      isOfflineError,
-      methods.formState.errors,
-      onSubmit,
-      onValidationError,
-      saveDraftAfterFailure,
-      schema.$id,
-      schema.version,
-      isSessionExpired,
-      validateAllSteps,
-      visibleSteps,
-    ],
+    [handleFormSubmit],
   );
 
   const handleNext = React.useCallback(async () => {
@@ -616,7 +695,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     }
 
     if (currentStepIndex === visibleSteps.length - 1) {
-      await handleFormSubmit(methods.getValues());
+      await handleFormSubmit();
     }
   }, [
     clearStepError,
@@ -847,7 +926,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       <form
         className={className}
         data-layout={activeLayout}
-        onSubmit={methods.handleSubmit(handleFormSubmit)}
+        onSubmit={handleSubmitEvent}
         noValidate
       >
         {submissionFeedback ? (
