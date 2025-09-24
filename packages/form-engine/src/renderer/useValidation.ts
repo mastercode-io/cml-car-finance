@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { UseFormProps, UseFormReturn } from 'react-hook-form';
 
 import type { UnifiedFormSchema } from '../types';
@@ -75,8 +75,28 @@ export function useValidationStrategyEffects(
   methods: UseFormReturn<Record<string, unknown>>,
   strategy: ValidationStrategy,
   debounceMs: number,
-): void {
+): () => Promise<void> {
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingValidationsRef = useRef(new Map<string, Promise<boolean>>());
+
+  const runValidation = useCallback(
+    (fieldName: string): Promise<boolean> => {
+      const existing = pendingValidationsRef.current.get(fieldName);
+      if (existing) {
+        return existing;
+      }
+
+      const promise = methods
+        .trigger(fieldName as any, { shouldFocus: false })
+        .finally(() => {
+          pendingValidationsRef.current.delete(fieldName);
+        });
+
+      pendingValidationsRef.current.set(fieldName, promise);
+      return promise;
+    },
+    [methods],
+  );
 
   useEffect(() => {
     if (strategy !== 'onChange' || debounceMs <= 0) {
@@ -96,8 +116,8 @@ export function useValidationStrategyEffects(
       }
 
       const timerId = setTimeout(() => {
-        void methods.trigger(fieldName as any, { shouldFocus: false });
         timersRef.current.delete(fieldName);
+        void runValidation(fieldName);
       }, debounceMs);
 
       timersRef.current.set(fieldName, timerId);
@@ -110,7 +130,24 @@ export function useValidationStrategyEffects(
       });
       timersRef.current.clear();
     };
-  }, [debounceMs, methods, strategy]);
+  }, [debounceMs, methods, runValidation, strategy]);
+
+  return useCallback(async () => {
+    if (strategy !== 'onChange' || debounceMs <= 0) {
+      return;
+    }
+
+    timersRef.current.forEach((timerId, fieldName) => {
+      clearTimeout(timerId);
+      timersRef.current.delete(fieldName);
+      void runValidation(fieldName);
+    });
+
+    const pending = Array.from(new Set(pendingValidationsRef.current.values()));
+    if (pending.length > 0) {
+      await Promise.allSettled(pending);
+    }
+  }, [debounceMs, runValidation, strategy]);
 }
 
 export function useResolvedValidation(schema: UnifiedFormSchema): {
