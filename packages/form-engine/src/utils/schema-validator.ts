@@ -98,6 +98,25 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
     dataSources: {
       type: 'object',
     },
+    navigation: {
+      type: 'object',
+      properties: {
+        review: {
+          type: 'object',
+          properties: {
+            stepId: { type: 'string' },
+            terminal: { type: 'boolean' },
+            validate: { type: 'string', enum: ['form', 'step'] },
+            freezeNavigation: { type: 'boolean' },
+          },
+        },
+        jumpToFirstInvalidOn: {
+          type: 'string',
+          enum: ['submit', 'next', 'never'],
+        },
+      },
+      additionalProperties: true,
+    },
   },
   additionalProperties: true,
 };

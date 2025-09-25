@@ -2,13 +2,21 @@
 
 import * as React from 'react';
 
-import type { FeatureFlags, FeatureFlagName, UnifiedFormSchema } from '../types';
+import type {
+  BooleanFeatureFlagName,
+  FeatureFlags,
+  FeatureFlagName,
+  JumpToFirstInvalidMode,
+  UnifiedFormSchema,
+} from '../types';
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   gridLayout: false,
   addressLookupUK: false,
   reviewSummary: false,
   'nav.dedupeToken': false,
+  'nav.reviewFreeze': false,
+  'nav.jumpToFirstInvalidOn': 'submit',
 };
 
 type FeaturesContextValue = FeatureFlags;
@@ -22,7 +30,7 @@ export interface FeaturesProviderProps {
 }
 
 type FeatureResolutionParams = {
-  schemaFeatures?: Record<string, boolean | undefined>;
+  schemaFeatures?: Record<string, unknown>;
   envOverrides?: Partial<FeatureFlags>;
   propOverrides?: Partial<FeatureFlags>;
 };
@@ -36,6 +44,26 @@ const parseBoolean = (value: string): boolean | undefined => {
     return false;
   }
   return undefined;
+};
+
+const isJumpMode = (value: string): value is JumpToFirstInvalidMode =>
+  ['submit', 'next', 'never'].includes(value.trim().toLowerCase());
+
+const setResolvedFlag = (
+  target: FeatureFlags,
+  key: FeatureFlagName,
+  value: FeatureFlags[FeatureFlagName] | undefined,
+): void => {
+  if (value === undefined) {
+    return;
+  }
+
+  if (key === 'nav.jumpToFirstInvalidOn') {
+    target[key] = value as JumpToFirstInvalidMode;
+    return;
+  }
+
+  target[key as BooleanFeatureFlagName] = Boolean(value);
 };
 
 const parseEnvFlags = (input?: string | null): Partial<FeatureFlags> => {
@@ -54,12 +82,20 @@ const parseEnvFlags = (input?: string | null): Partial<FeatureFlags> => {
       return acc;
     }
 
+    if (key === 'nav.jumpToFirstInvalidOn') {
+      const normalized = rawValue.trim().toLowerCase();
+      if (isJumpMode(normalized)) {
+        acc[key] = normalized as JumpToFirstInvalidMode;
+      }
+      return acc;
+    }
+
     const parsed = parseBoolean(rawValue);
     if (parsed === undefined) {
       return acc;
     }
 
-    acc[key] = parsed;
+    acc[key as BooleanFeatureFlagName] = parsed;
     return acc;
   }, {});
 };
@@ -73,25 +109,45 @@ const resolveFeatureFlags = ({
 
   if (schemaFeatures) {
     for (const [key, value] of Object.entries(schemaFeatures)) {
-      if (key in DEFAULT_FEATURE_FLAGS && typeof value === 'boolean') {
-        resolved[key as FeatureFlagName] = value;
+      if (!(key in DEFAULT_FEATURE_FLAGS)) {
+        continue;
+      }
+
+      if (key === 'nav.jumpToFirstInvalidOn') {
+        if (typeof value === 'string' && isJumpMode(value)) {
+          resolved[key] = value as JumpToFirstInvalidMode;
+        }
+        continue;
+      }
+
+      if (typeof value === 'boolean') {
+        resolved[key as BooleanFeatureFlagName] = value;
       }
     }
   }
 
   if (propOverrides) {
     for (const [key, value] of Object.entries(propOverrides)) {
-      if (key in DEFAULT_FEATURE_FLAGS && typeof value === 'boolean') {
-        resolved[key as FeatureFlagName] = value;
+      if (!(key in DEFAULT_FEATURE_FLAGS)) {
+        continue;
+      }
+
+      if (key === 'nav.jumpToFirstInvalidOn') {
+        if (typeof value === 'string' && isJumpMode(value)) {
+          resolved[key] = value as JumpToFirstInvalidMode;
+        }
+        continue;
+      }
+
+      if (typeof value === 'boolean') {
+        resolved[key as BooleanFeatureFlagName] = value;
       }
     }
   }
 
   if (envOverrides) {
     for (const [key, value] of Object.entries(envOverrides)) {
-      if (key in DEFAULT_FEATURE_FLAGS && typeof value === 'boolean') {
-        resolved[key as FeatureFlagName] = value;
-      }
+      setResolvedFlag(resolved, key as FeatureFlagName, value as FeatureFlags[FeatureFlagName]);
     }
   }
 
@@ -125,13 +181,24 @@ export const useFeatures = (): FeatureFlags => {
   return React.useContext(FeaturesContext);
 };
 
-export const useFlag = (name: FeatureFlagName, defaultValue?: boolean): boolean => {
+export function useFlag(name: BooleanFeatureFlagName, defaultValue?: boolean): boolean;
+export function useFlag(
+  name: 'nav.jumpToFirstInvalidOn',
+  defaultValue?: JumpToFirstInvalidMode,
+): JumpToFirstInvalidMode;
+export function useFlag(
+  name: FeatureFlagName,
+  defaultValue?: FeatureFlags[FeatureFlagName],
+): FeatureFlags[FeatureFlagName] {
   const features = useFeatures();
   if (name in features) {
     return features[name];
   }
-  return defaultValue ?? false;
-};
+  if (defaultValue !== undefined) {
+    return defaultValue as FeatureFlags[FeatureFlagName];
+  }
+  return DEFAULT_FEATURE_FLAGS[name];
+}
 
 export const getDefaultFeatureFlags = (): FeatureFlags => ({ ...DEFAULT_FEATURE_FLAGS });
 
