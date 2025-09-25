@@ -20,16 +20,16 @@ export class TransitionEngine {
   ): string | null {
     const transitions = schema.transitions.filter((transition) => transition.from === currentStep);
 
-    const sorted = [...transitions].sort((a, b) => {
-      if (a.default && !b.default) return 1;
-      if (!a.default && b.default) return -1;
-      return 0;
-    });
+    const defaultCount = transitions.filter((transition) => transition.default).length;
+    if (defaultCount > 1) {
+      throw new Error(`Step "${currentStep}" has multiple default transitions defined.`);
+    }
 
-    for (const transition of sorted) {
+    const defaultTransition = transitions.find((transition) => transition.default);
+
+    for (const transition of transitions) {
       if (transition.default) {
-        this.recordTransition(currentStep, transition.to, 'default');
-        return transition.to;
+        continue;
       }
 
       if (transition.when && !this.evaluator.evaluate(transition.when, data, context)) {
@@ -48,6 +48,11 @@ export class TransitionEngine {
 
       this.recordTransition(currentStep, transition.to, 'conditional');
       return transition.to;
+    }
+
+    if (defaultTransition) {
+      this.recordTransition(currentStep, defaultTransition.to, 'default');
+      return defaultTransition.to;
     }
 
     return null;
@@ -138,5 +143,4 @@ export class TransitionEngine {
   ): string[] {
     return this.visibility.getVisibleSteps(schema, data, context);
   }
-
 }

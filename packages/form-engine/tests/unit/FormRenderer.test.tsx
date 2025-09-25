@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-
 import type { UnifiedFormSchema } from '@form-engine/types';
 import { FormRenderer } from '@form-engine/index';
 import { ValidationEngine } from '../../src/validation/ajv-setup';
+import { TransitionEngine } from '../../src/rules/transition-engine';
 
 const saveDraftMock = jest.fn();
 const flushPendingSavesMock = jest.fn();
@@ -193,6 +193,99 @@ describe('FormRenderer', () => {
     await waitFor(() => {
       expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
     });
+  });
+
+  it('ignores transitions that resolve to the current step when nav.dedupeToken flag is enabled', async () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'nav.dedupeToken=true';
+    const schema = buildSchema();
+    const nextSpy = jest
+      .spyOn(TransitionEngine.prototype, 'getNextStep')
+      .mockReturnValue('personal');
+
+    try {
+      render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Jane' },
+      });
+      fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+        target: { value: 'Doe' },
+      });
+
+      const nextButton = await screen.findByRole('button', { name: /next/i });
+
+      await act(async () => {
+        fireEvent.click(nextButton);
+      });
+
+      expect(nextSpy).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('heading', { name: /personal info/i })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /contact info/i })).not.toBeInTheDocument();
+    } finally {
+      nextSpy.mockRestore();
+    }
+  });
+
+  it('ignores stale navigation tokens when a newer navigation completes first', async () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'nav.dedupeToken=true';
+    const schema = buildSchema();
+    const validationResolvers: Array<() => void> = [];
+    const validationSpy = jest
+      .spyOn(ValidationEngine.prototype, 'validate')
+      .mockImplementation(((() => {
+        return new Promise<Awaited<ReturnType<ValidationEngine['validate']>>>((resolve) => {
+          validationResolvers.push(() =>
+            resolve({ valid: true, errors: [], duration: 0 }),
+          );
+        });
+      }) as unknown) as ValidationEngine['validate']);
+
+    const nextSpy = jest
+      .spyOn(TransitionEngine.prototype, 'getNextStep')
+      .mockReturnValue('contact');
+
+    try {
+      render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Jane' },
+      });
+      fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+        target: { value: 'Doe' },
+      });
+
+      const nextButton = await screen.findByRole('button', { name: /next/i });
+      fireEvent.click(nextButton);
+      fireEvent.click(nextButton);
+
+      expect(validationResolvers).toHaveLength(2);
+
+      await act(async () => {
+        validationResolvers[1]();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+      });
+
+      expect(nextSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        validationResolvers[0]();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+      });
+
+      expect(nextSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      validationSpy.mockRestore();
+      validationResolvers.length = 0;
+      nextSpy.mockRestore();
+    }
   });
 
   it('defers validation until submit when strategy is onSubmit', async () => {

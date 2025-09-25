@@ -20,23 +20,36 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
+      - name: Enable corepack
+        run: corepack enable
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspaces
 
       - name: Lint
+        env:
+          CI: '1'
         run: npm run lint
 
       - name: Typecheck
+        env:
+          CI: '1'
         run: npm run typecheck
 
       - name: Unit tests
-        run: npm test -- --ci --reporters=default
+        env:
+          CI: '1'
+        run: npm run test
 
       - name: Build
+        env:
+          CI: '1'
         run: npm run build
 
       - name: Size limit
+        env:
+          CI: '1'
         run: npm run size
