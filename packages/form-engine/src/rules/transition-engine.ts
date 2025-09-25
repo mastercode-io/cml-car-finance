@@ -1,4 +1,9 @@
-import type { TransitionContext, TransitionHistoryEntry, UnifiedFormSchema } from '../types';
+import type {
+  ResolvedReviewNavigationPolicy,
+  TransitionContext,
+  TransitionHistoryEntry,
+  UnifiedFormSchema,
+} from '../types';
 import { RuleEvaluator } from './rule-evaluator';
 import { VisibilityController } from './visibility-controller';
 
@@ -18,6 +23,18 @@ export class TransitionEngine {
     data: any,
     context?: TransitionContext,
   ): string | null {
+    const reviewPolicy: ResolvedReviewNavigationPolicy =
+      context?.navigationReviewPolicy ?? {
+        stepId: schema.navigation?.review?.stepId ?? 'review',
+        terminal: schema.navigation?.review?.terminal ?? true,
+        freezeNavigation: schema.navigation?.review?.freezeNavigation ?? true,
+        validate: schema.navigation?.review?.validate ?? 'form',
+      };
+
+    if (currentStep === reviewPolicy.stepId && reviewPolicy.terminal) {
+      return null;
+    }
+
     const transitions = schema.transitions.filter((transition) => transition.from === currentStep);
 
     const defaultCount = transitions.filter((transition) => transition.default).length;

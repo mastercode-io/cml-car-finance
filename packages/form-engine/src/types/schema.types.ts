@@ -37,8 +37,15 @@ export interface FormStep {
 export interface ReviewNavigationPolicy {
   stepId?: string;
   terminal?: boolean;
-  validate?: 'form' | 'step';
+  validate?: 'none' | 'step' | 'form';
   freezeNavigation?: boolean;
+}
+
+export interface ResolvedReviewNavigationPolicy {
+  stepId: string;
+  terminal: boolean;
+  validate: 'none' | 'step' | 'form';
+  freezeNavigation: boolean;
 }
 
 export interface NavigationConfig {

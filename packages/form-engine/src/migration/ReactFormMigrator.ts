@@ -90,7 +90,7 @@ export class ReactFormMigrator {
     };
 
     traverse(ast, {
-      JSXElement: (path) => {
+      JSXElement: (path: any) => {
         const element = path.node;
         const nameNode = element.openingElement.name;
         const tagName = this.getTagName(nameNode);
@@ -113,7 +113,7 @@ export class ReactFormMigrator {
           structure.fields.push(field);
         }
       },
-      CallExpression: (path) => {
+      CallExpression: (path: any) => {
         const callee = path.node.callee;
         if (this.isRegisterCall(callee) && path.node.arguments.length > 0) {
           const [firstArg, secondArg] = path.node.arguments;
@@ -123,7 +123,7 @@ export class ReactFormMigrator {
 
           if (secondArg && secondArg.type === 'ObjectExpression') {
             const requiredProp = secondArg.properties.find(
-              (prop) =>
+              (prop: any) =>
                 prop.type === 'ObjectProperty' &&
                 prop.key.type === 'Identifier' &&
                 prop.key.name === 'required',

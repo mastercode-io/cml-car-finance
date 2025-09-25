@@ -108,7 +108,7 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
           properties: {
             stepId: { type: 'string' },
             terminal: { type: 'boolean' },
-            validate: { type: 'string', enum: ['form', 'step'] },
+            validate: { type: 'string', enum: ['none', 'step', 'form'] },
             freezeNavigation: { type: 'boolean' },
           },
         },
