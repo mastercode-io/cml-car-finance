@@ -114,6 +114,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const currentStepSchemaRef = React.useRef<JSONSchema | undefined>(undefined);
   const persistenceRef = React.useRef<PersistenceManager | null>(null);
   const persistencePromiseRef = React.useRef<Promise<PersistenceManager | null> | null>(null);
+  const navigationTokenRef = React.useRef(0);
 
   const { config: validationConfig, modes: validationModes } = useResolvedValidation(schema);
   const validationStrategy = validationConfig.strategy;
@@ -150,6 +151,25 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   );
   const [isSessionExpired, setSessionExpired] = React.useState(false);
   const submitInFlightRef = React.useRef(false);
+  const navDedupeEnabled = useFlag('nav.dedupeToken');
+
+  const beginNavigation = React.useCallback(() => {
+    if (!navDedupeEnabled) {
+      return 0;
+    }
+    navigationTokenRef.current += 1;
+    return navigationTokenRef.current;
+  }, [navDedupeEnabled]);
+
+  const isNavigationTokenCurrent = React.useCallback(
+    (token: number) => {
+      if (!navDedupeEnabled) {
+        return true;
+      }
+      return navigationTokenRef.current === token;
+    },
+    [navDedupeEnabled],
+  );
 
   const resolver = React.useCallback(
     async (values: Record<string, unknown>, context: any, options: any) => {
@@ -666,14 +686,18 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     if (isSessionExpired || !currentStepSchema || !currentStepConfig || !currentStepId) {
       return;
     }
+    const navigationToken = beginNavigation();
     const isValid = await validateCurrentStep();
     if (!isValid) {
       scrollToFirstError();
       return;
     }
 
+    if (!isNavigationTokenCurrent(navigationToken)) {
+      return;
+    }
+
     clearStepError(currentStepId);
-    setCompletedSteps((prev) => (prev.includes(currentStepId) ? prev : [...prev, currentStepId]));
 
     let nextStepId: string | undefined =
       transitionEngineRef.current.getNextStep(schema, currentStepConfig.id, methods.getValues()) ??
@@ -685,27 +709,47 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       nextStepId = visibleSteps[currentStepIndex + 1];
     }
 
+    if (navDedupeEnabled && nextStepId === currentStepId) {
+      return;
+    }
+
+    setCompletedSteps((prev) => (prev.includes(currentStepId) ? prev : [...prev, currentStepId]));
+
     if (nextStepId) {
       const nextIndex = visibleSteps.indexOf(nextStepId);
       if (nextIndex >= 0) {
-        setStepHistory((history) => [...history, currentStepId]);
+        if (!isNavigationTokenCurrent(navigationToken)) {
+          return;
+        }
+        setStepHistory((history) => {
+          if (navDedupeEnabled && history[history.length - 1] === currentStepId) {
+            return history;
+          }
+          return [...history, currentStepId];
+        });
         setCurrentStepIndex(nextIndex);
         return;
       }
     }
 
     if (currentStepIndex === visibleSteps.length - 1) {
+      if (!isNavigationTokenCurrent(navigationToken)) {
+        return;
+      }
       await handleFormSubmit();
     }
   }, [
+    beginNavigation,
     clearStepError,
     currentStepConfig,
     currentStepId,
     currentStepIndex,
     currentStepSchema,
     handleFormSubmit,
+    isNavigationTokenCurrent,
     isSessionExpired,
     methods,
+    navDedupeEnabled,
     schema,
     validateCurrentStep,
     visibleSteps,

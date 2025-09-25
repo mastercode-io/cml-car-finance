@@ -8,7 +8,7 @@
 | **P3-NAV-01**| Terminal step semantics (resolver)                 | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Terminal steps now stay put; awaiting downstream flag wiring. |
 | **P3-NAV-02**| Deterministic resolution (guards/default)          | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt · ⚠️ lint/type/test/build/size (missing deps) | Deterministic guard-first resolver + default validation; tests added. |
 | **P3-NAV-03**| Review freeze + validation policy                   | P0  | `codex/p3v2-nav-03-review`    |             | TODO         |                                    | `nav.reviewFreeze`, `nav.jumpToFirstInvalidOn` |
-| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex/p3v2-nav-04-dedupe`    |             | TODO         |                                    |       |
+| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt · ⚠️ lint/type/test/build/size (missing deps) | `nav.dedupeToken` gate ignores stale tokens + self-transitions; unit coverage added. |
 | **P3-NAV-05**| Schema linter rules (CI blocking)                   | P0  | `codex/p3v2-nav-05-linter`    |             | TODO         |                                    | dup defaults, cycles, unknown targets |
 | **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     |             | TODO         |                                    | terminal/null, precedence |
 | **P3-NAV-07**| Integration & E2E tests                             | P0  | `codex/p3v2-nav-07-e2e`       |             | TODO         |                                    | Review stays; submit bounce-once |
@@ -27,4 +27,4 @@
 
 **Legend:** Status = TODO → In Progress → Review → Merged
 
-_Last updated: 2025-09-24 23:35:38Z
+_Last updated: 2025-09-25 00:22:00Z

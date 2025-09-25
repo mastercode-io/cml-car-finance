@@ -8,6 +8,7 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   gridLayout: false,
   addressLookupUK: false,
   reviewSummary: false,
+  'nav.dedupeToken': false,
 };
 
 type FeaturesContextValue = FeatureFlags;
