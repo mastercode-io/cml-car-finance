@@ -290,6 +290,92 @@ describe('FormRenderer', () => {
     }
   });
 
+  it('keeps the user on the override step when a subsequent navigation cancels the original request', async () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'nav.dedupeToken=true';
+    const schema = buildSchema();
+    schema.steps.push({
+      id: 'review',
+      title: 'Review',
+      schema: { type: 'object', properties: {} },
+    });
+    schema.transitions.push({ from: 'contact', to: 'review', default: true });
+
+    const validationResolvers: Array<() => void> = [];
+    const validationSpy = jest
+      .spyOn(ValidationEngine.prototype, 'validate')
+      .mockImplementation(((() => {
+        return new Promise<Awaited<ReturnType<ValidationEngine['validate']>>>((resolve) => {
+          validationResolvers.push(() =>
+            resolve({ valid: true, errors: [], duration: 0 }),
+          );
+        });
+      }) as unknown) as ValidationEngine['validate']);
+
+    try {
+      render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+      fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+        target: { value: 'Jane' },
+      });
+      fireEvent.change(screen.getByRole('textbox', { name: /last name/i }), {
+        target: { value: 'Doe' },
+      });
+
+      const firstNextButton = await screen.findByRole('button', { name: /next/i });
+
+      await act(async () => {
+        fireEvent.click(firstNextButton);
+      });
+
+      expect(validationResolvers).toHaveLength(1);
+
+      await act(async () => {
+        validationResolvers.shift()?.();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /contact info/i })).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByRole('textbox', { name: /email/i }), {
+        target: { value: 'jane@example.com' },
+      });
+
+      const secondNextButton = await screen.findByRole('button', { name: /next/i });
+
+      await act(async () => {
+        fireEvent.click(secondNextButton);
+      });
+
+      expect(validationResolvers).toHaveLength(1);
+
+      const previousButton = await screen.findByRole('button', { name: /previous/i });
+      await act(async () => {
+        fireEvent.click(previousButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /personal info/i })).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        validationResolvers.shift()?.();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /personal info/i })).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole('heading', { name: /review/i }),
+      ).not.toBeInTheDocument();
+    } finally {
+      validationSpy.mockRestore();
+      validationResolvers.length = 0;
+    }
+  });
+
   it('defers validation until submit when strategy is onSubmit', async () => {
     const schema = buildSchema();
     schema.validation = { strategy: 'onSubmit' };

@@ -1,7 +1,11 @@
 import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 
-import type { FeatureFlags, UnifiedFormSchema } from '@form-engine/types';
+import type {
+  BooleanFeatureFlagName,
+  FeatureFlags,
+  UnifiedFormSchema,
+} from '@form-engine/types';
 import { FeaturesProvider, useFlag } from '@form-engine/index';
 
 const buildSchema = (features?: Partial<FeatureFlags>): UnifiedFormSchema => ({
@@ -26,9 +30,14 @@ const buildSchema = (features?: Partial<FeatureFlags>): UnifiedFormSchema => ({
   features,
 });
 
-const FlagReader: React.FC<{ name: keyof FeatureFlags }> = ({ name }) => {
+const FlagReader: React.FC<{ name: BooleanFeatureFlagName }> = ({ name }) => {
   const enabled = useFlag(name);
   return <span data-testid={`flag-${name}`}>{enabled ? 'on' : 'off'}</span>;
+};
+
+const JumpPolicyReader: React.FC = () => {
+  const mode = useFlag('nav.jumpToFirstInvalidOn');
+  return <span data-testid="flag-nav.jumpToFirstInvalidOn">{mode}</span>;
 };
 
 describe('FeaturesProvider', () => {
@@ -46,47 +55,69 @@ describe('FeaturesProvider', () => {
         <FlagReader name="gridLayout" />
         <FlagReader name="addressLookupUK" />
         <FlagReader name="reviewSummary" />
+        <JumpPolicyReader />
       </FeaturesProvider>,
     );
 
     expect(screen.getByTestId('flag-gridLayout')).toHaveTextContent('off');
     expect(screen.getByTestId('flag-addressLookupUK')).toHaveTextContent('off');
     expect(screen.getByTestId('flag-reviewSummary')).toHaveTextContent('off');
+    expect(screen.getByTestId('flag-nav.jumpToFirstInvalidOn')).toHaveTextContent('submit');
   });
 
   it('honours schema-provided flag overrides', () => {
     render(
-      <FeaturesProvider schema={buildSchema({ gridLayout: true, reviewSummary: true })}>
+      <FeaturesProvider
+        schema={buildSchema({ gridLayout: true, reviewSummary: true, 'nav.jumpToFirstInvalidOn': 'next' })}
+      >
         <FlagReader name="gridLayout" />
         <FlagReader name="reviewSummary" />
+        <JumpPolicyReader />
       </FeaturesProvider>,
     );
 
     expect(screen.getByTestId('flag-gridLayout')).toHaveTextContent('on');
     expect(screen.getByTestId('flag-reviewSummary')).toHaveTextContent('on');
+    expect(screen.getByTestId('flag-nav.jumpToFirstInvalidOn')).toHaveTextContent('next');
   });
 
   it('gives precedence to environment overrides over schema values', () => {
-    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=false,reviewSummary=true';
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=false,reviewSummary=true,nav.jumpToFirstInvalidOn=never';
 
     render(
       <FeaturesProvider schema={buildSchema({ gridLayout: true, reviewSummary: false })}>
         <FlagReader name="gridLayout" />
         <FlagReader name="reviewSummary" />
+        <JumpPolicyReader />
       </FeaturesProvider>,
     );
 
     expect(screen.getByTestId('flag-gridLayout')).toHaveTextContent('off');
     expect(screen.getByTestId('flag-reviewSummary')).toHaveTextContent('on');
+    expect(screen.getByTestId('flag-nav.jumpToFirstInvalidOn')).toHaveTextContent('never');
   });
 
   it('applies explicit prop overrides on top of schema defaults', () => {
     render(
-      <FeaturesProvider schema={buildSchema()} overrides={{ addressLookupUK: true }}>
+      <FeaturesProvider schema={buildSchema()} overrides={{ addressLookupUK: true, 'nav.jumpToFirstInvalidOn': 'next' }}>
         <FlagReader name="addressLookupUK" />
+        <JumpPolicyReader />
       </FeaturesProvider>,
     );
 
     expect(screen.getByTestId('flag-addressLookupUK')).toHaveTextContent('on');
+    expect(screen.getByTestId('flag-nav.jumpToFirstInvalidOn')).toHaveTextContent('next');
+  });
+
+  it('falls back to schema navigation when env override is invalid', () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'nav.jumpToFirstInvalidOn=invalid';
+
+    render(
+      <FeaturesProvider schema={buildSchema({ 'nav.jumpToFirstInvalidOn': 'never' })}>
+        <JumpPolicyReader />
+      </FeaturesProvider>,
+    );
+
+    expect(screen.getByTestId('flag-nav.jumpToFirstInvalidOn')).toHaveTextContent('never');
   });
 });
