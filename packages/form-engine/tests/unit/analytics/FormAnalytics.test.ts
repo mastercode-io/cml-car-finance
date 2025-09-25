@@ -159,4 +159,55 @@ describe('FormAnalytics', () => {
     expect(entries.length).toBeGreaterThan(0);
     expect(entries[entries.length - 1]?.duration ?? 0).toBeGreaterThan(0);
   });
+
+  it('emits a nav_loop_detected event for rapid two-step oscillations', () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+    let currentTime = 1_000;
+    nowSpy.mockImplementation(() => currentTime);
+
+    analytics?.trackStepView('personal-details');
+    currentTime += 300;
+    analytics?.trackStepView('employment');
+    currentTime += 300;
+    analytics?.trackStepView('personal-details');
+    currentTime += 300;
+    analytics?.trackStepView('employment');
+
+    const events = (analytics as unknown as { events: AnalyticsEvent[] }).events;
+    const loopEvents = events.filter((event) => event.name === 'nav_loop_detected');
+
+    expect(loopEvents).toHaveLength(1);
+    expect(loopEvents[0]?.category).toBe('navigation');
+    expect(loopEvents[0]?.data.steps).toEqual([
+      'personal-details',
+      'employment',
+      'personal-details',
+      'employment',
+    ]);
+
+    nowSpy.mockRestore();
+  });
+
+  it('emits a nav_loop_detected event for rapid three-step cycles', () => {
+    const nowSpy = jest.spyOn(Date, 'now');
+    let currentTime = 5_000;
+    nowSpy.mockImplementation(() => currentTime);
+
+    analytics?.trackStepView('identity');
+    currentTime += 400;
+    analytics?.trackStepView('financial');
+    currentTime += 400;
+    analytics?.trackStepView('review');
+    currentTime += 400;
+    analytics?.trackStepView('identity');
+
+    const events = (analytics as unknown as { events: AnalyticsEvent[] }).events;
+    const loopEvents = events.filter((event) => event.name === 'nav_loop_detected');
+
+    expect(loopEvents).toHaveLength(1);
+    expect(loopEvents[0]?.data.uniqueStepCount).toBe(3);
+    expect(loopEvents[0]?.data.steps).toEqual(['identity', 'financial', 'review', 'identity']);
+
+    nowSpy.mockRestore();
+  });
 });

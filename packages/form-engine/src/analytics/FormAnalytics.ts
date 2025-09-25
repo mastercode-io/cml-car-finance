@@ -67,6 +67,9 @@ const DEFAULT_CONFIG: Required<
   flushInterval: 8000,
 };
 
+const LOOP_DETECTION_WINDOW_MS = 2000;
+const LOOP_EVENT_THROTTLE_MS = 2000;
+
 const DEFAULT_EVENT_VERSION = 1;
 
 export class FormAnalytics {
@@ -81,6 +84,8 @@ export class FormAnalytics {
   private payloadVersion: string;
   private formId?: string;
   private schemaVersion?: string;
+  private stepViewTimeline: Array<{ stepId: string; timestamp: number }> = [];
+  private lastLoopEventAt = 0;
 
   constructor(config: FormAnalyticsConfig) {
     this.config = {
@@ -105,6 +110,25 @@ export class FormAnalytics {
     if (this.config.enabled && typeof window !== 'undefined') {
       this.initialize();
     }
+  }
+
+  trackStepView(stepId: string): void {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    this.recordStepView(stepId);
+
+    this.trackEvent(
+      'step_viewed',
+      {
+        formId: this.formId,
+        schemaVersion: this.schemaVersion,
+        stepId,
+      },
+      'navigation',
+      { formId: this.formId, schemaVersion: this.schemaVersion, stepId, sensitive: false },
+    );
   }
 
   trackEvent(
@@ -537,5 +561,74 @@ export class FormAnalytics {
 
   private randomId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  private recordStepView(stepId: string): void {
+    const now = Date.now();
+    this.stepViewTimeline.push({ stepId, timestamp: now });
+    this.stepViewTimeline = this.stepViewTimeline.filter(
+      (entry) => now - entry.timestamp <= LOOP_DETECTION_WINDOW_MS,
+    );
+
+    if (this.stepViewTimeline.length === 0) {
+      return;
+    }
+
+    const dedupedSteps: string[] = [];
+    for (const entry of this.stepViewTimeline) {
+      if (dedupedSteps[dedupedSteps.length - 1] !== entry.stepId) {
+        dedupedSteps.push(entry.stepId);
+      }
+    }
+
+    if (dedupedSteps.length < 4) {
+      return;
+    }
+
+    const recentSteps = dedupedSteps.slice(-4);
+    const uniqueRecentSteps = new Set(recentSteps);
+
+    let loopDetected = false;
+
+    if (uniqueRecentSteps.size === 2) {
+      loopDetected =
+        recentSteps[0] !== recentSteps[1] &&
+        recentSteps[0] === recentSteps[2] &&
+        recentSteps[1] === recentSteps[3];
+    } else if (uniqueRecentSteps.size === 3) {
+      loopDetected =
+        recentSteps[0] === recentSteps[3] &&
+        recentSteps[0] !== recentSteps[1] &&
+        recentSteps[1] !== recentSteps[2] &&
+        recentSteps[0] !== recentSteps[2];
+    }
+
+    if (!loopDetected) {
+      return;
+    }
+
+    if (this.lastLoopEventAt !== 0 && now - this.lastLoopEventAt < LOOP_EVENT_THROTTLE_MS) {
+      return;
+    }
+
+    this.lastLoopEventAt = now;
+
+    this.trackEvent(
+      'nav_loop_detected',
+      {
+        formId: this.formId,
+        schemaVersion: this.schemaVersion,
+        steps: recentSteps,
+        uniqueStepCount: uniqueRecentSteps.size,
+        windowMs: LOOP_DETECTION_WINDOW_MS,
+      },
+      'navigation',
+      {
+        formId: this.formId,
+        schemaVersion: this.schemaVersion,
+        stepId: recentSteps[recentSteps.length - 1],
+        sensitive: false,
+      },
+    );
   }
 }
