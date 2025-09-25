@@ -126,6 +126,55 @@ describe('TransitionEngine', () => {
     const next = engine.getNextStep(schema, 'step3', {});
     expect(next).toBeNull();
   });
+
+  it('evaluates transitions in declared order before considering default fallback', () => {
+    const engine = new TransitionEngine();
+    const orderedSchema: UnifiedFormSchema = {
+      ...schema,
+      transitions: [
+        { from: 'step1', to: 'step2', default: true },
+        { from: 'step1', to: 'step3', when: RuleBuilder.equals('skip', true) },
+      ],
+    };
+
+    expect(engine.getNextStep(orderedSchema, 'step1', { skip: true })).toBe('step3');
+    expect(engine.getNextStep(orderedSchema, 'step1', { skip: false })).toBe('step2');
+  });
+
+  it('resolves the first matching transition when multiple conditions pass', () => {
+    const engine = new TransitionEngine();
+    const deterministicSchema: UnifiedFormSchema = {
+      ...schema,
+      steps: [
+        ...schema.steps,
+        { id: 'step4', title: 'Step 4', schema: { type: 'object', properties: {} } },
+      ],
+      transitions: [
+        { from: 'step1', to: 'step2', when: RuleBuilder.greaterThan('score', 5) },
+        { from: 'step1', to: 'step3', when: RuleBuilder.greaterThan('score', 1) },
+        { from: 'step1', to: 'step4', default: true },
+      ],
+    };
+
+    expect(engine.getNextStep(deterministicSchema, 'step1', { score: 10 })).toBe('step2');
+    expect(engine.getNextStep(deterministicSchema, 'step1', { score: 2 })).toBe('step3');
+    expect(engine.getNextStep(deterministicSchema, 'step1', { score: 0 })).toBe('step4');
+  });
+
+  it('throws when multiple default transitions are defined for a step', () => {
+    const engine = new TransitionEngine();
+    const invalidSchema: UnifiedFormSchema = {
+      ...schema,
+      transitions: [
+        { from: 'step1', to: 'step2', default: true },
+        { from: 'step1', to: 'step3', default: true },
+      ],
+    };
+
+    expect(() => engine.getNextStep(invalidSchema, 'step1', {})).toThrow(
+      'Step "step1" has multiple default transitions defined.',
+    );
+  });
 });
 
 describe('XStateAdapter', () => {
