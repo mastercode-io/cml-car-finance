@@ -5,7 +5,13 @@ import { FormProvider, useForm } from 'react-hook-form';
 
 import { FieldFactory } from '../components/fields/FieldFactory';
 import { FeaturesProvider, useFlag } from '../context/features';
-import type { JSONSchema, UnifiedFormSchema, ValidationError, WidgetType } from '../types';
+import type {
+  JSONSchema,
+  ResolvedReviewNavigationPolicy,
+  UnifiedFormSchema,
+  ValidationError,
+  WidgetType,
+} from '../types';
 import { TransitionEngine } from '../rules/transition-engine';
 import { VisibilityController } from '../rules/visibility-controller';
 import { ValidationEngine } from '../validation/ajv-setup';
@@ -34,6 +40,33 @@ const formatDuration = (ms: number): string => {
     return [hours, minutes, seconds].map((v) => v.toString().padStart(2, '0')).join(':');
   }
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const formatSummaryValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '—';
+    }
+    return value.map((item) => formatSummaryValue(item)).join(', ');
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+
+  return String(value);
 };
 
 type SubmissionSummaryOptions = {
@@ -121,6 +154,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const [stepHistory, setStepHistory] = React.useState<string[]>([]);
   const [completedSteps, setCompletedSteps] = React.useState<string[]>([]);
   const [errorSteps, setErrorSteps] = React.useState<string[]>([]);
+  const [highlightedReviewSection, setHighlightedReviewSection] = React.useState<string | null>(null);
   const [isSubmitting, setSubmitting] = React.useState(false);
   const [submissionFeedback, setSubmissionFeedback] = React.useState<null | {
     type: 'info' | 'error';
@@ -152,12 +186,12 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const jumpToFirstInvalidFlag = useFlag('nav.jumpToFirstInvalidOn', 'submit');
 
   // Review navigation policy (flag can force freeze/terminal regardless of schema)
-  const reviewNavigation = React.useMemo(() => {
+  const reviewNavigation = React.useMemo<ResolvedReviewNavigationPolicy>(() => {
     const base = schema.navigation?.review ?? {};
     const stepId = base.stepId ?? 'review';
-    const freezeNavigation = reviewFreezeEnabled ? true : base.freezeNavigation ?? false;
-    const terminal = reviewFreezeEnabled ? true : base.terminal ?? false;
-    const validate = reviewFreezeEnabled ? base.validate ?? 'form' : base.validate;
+    const validate = base.validate ?? 'form';
+    const freezeNavigation = reviewFreezeEnabled ? true : base.freezeNavigation ?? true;
+    const terminal = reviewFreezeEnabled ? true : base.terminal ?? true;
     return { stepId, freezeNavigation, terminal, validate };
   }, [reviewFreezeEnabled, schema.navigation?.review]);
 
@@ -301,6 +335,9 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     : undefined;
   currentStepSchemaRef.current = currentStepSchema;
 
+  const isReviewStep = currentStepId === reviewNavigation.stepId;
+  const isReviewFrozen = isReviewStep && reviewNavigation.freezeNavigation;
+
   // Callbacks for external listeners
   React.useEffect(() => {
     if (currentStepConfig && onStepChange) {
@@ -354,6 +391,36 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     return undefined;
   }, [methods.formState.errors, stepFieldMap, visibleSteps]);
 
+  const handleInvalidDuringSubmit = React.useCallback(
+    (targetStep?: string) => {
+      if (!shouldJumpOnSubmit || !targetStep) {
+        return;
+      }
+
+      const targetIndex = visibleSteps.indexOf(targetStep);
+      if (targetIndex < 0) {
+        return;
+      }
+
+      if (isReviewStep && reviewNavigation.validate === 'form') {
+        setHighlightedReviewSection(targetStep);
+        return;
+      }
+
+      cancelPendingNavigation();
+      setCurrentStepIndex(targetIndex);
+    },
+    [
+      shouldJumpOnSubmit,
+      visibleSteps,
+      isReviewStep,
+      reviewNavigation.validate,
+      cancelPendingNavigation,
+      setCurrentStepIndex,
+      setHighlightedReviewSection,
+    ],
+  );
+
   // Steps that currently have any field errors
   const stepErrorsFromState = React.useMemo(() => {
     const flattened = flattenFieldErrors(methods.formState.errors);
@@ -382,6 +449,28 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   }, [stepErrorsFromState]);
 
   const errorStepSet = React.useMemo(() => new Set(errorSteps), [errorSteps]);
+
+  React.useEffect(() => {
+    if (!isReviewStep) {
+      if (highlightedReviewSection !== null) {
+        setHighlightedReviewSection(null);
+      }
+      return;
+    }
+    if (!highlightedReviewSection) return;
+    if (typeof document === 'undefined') return;
+    const element = document.getElementById(`review-section-${highlightedReviewSection}`);
+    if (element && typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [highlightedReviewSection, isReviewStep]);
+
+  React.useEffect(() => {
+    if (!highlightedReviewSection) return;
+    if (!errorStepSet.has(highlightedReviewSection)) {
+      setHighlightedReviewSection(null);
+    }
+  }, [highlightedReviewSection, errorStepSet]);
 
   // Persistence manager (lazy)
   const ensurePersistenceManager = React.useCallback(async () => {
@@ -580,51 +669,41 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     setSubmissionFeedback(null);
 
     try {
+      setHighlightedReviewSection(null);
       await flushPendingValidation();
 
-      // RHF-wide check to surface inline errors and potentially jump
-      const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
-      if (!isFormValid) {
-        if (shouldJumpOnSubmit) {
-          const targetStep = getFirstInvalidStep();
-          if (targetStep) {
-            const targetIndex = visibleSteps.indexOf(targetStep);
-            if (targetIndex >= 0) {
-              cancelPendingNavigation();
-              setCurrentStepIndex(targetIndex);
-            }
-          }
+      const shouldRunFullValidation = !isReviewStep || reviewNavigation.validate === 'form';
+      const shouldRunStepValidation = isReviewStep && reviewNavigation.validate === 'step';
+
+      if (shouldRunStepValidation) {
+        const isStepValid = await validateCurrentStep();
+        if (!isStepValid) {
+          handleInvalidDuringSubmit(currentStepId);
+          scrollToFirstError();
+          onValidationError?.(methods.formState.errors);
+          return;
         }
-        scrollToFirstError();
-        onValidationError?.(methods.formState.errors);
-        return;
       }
 
-      // AJV check step-by-step to ensure no hidden step slips through
-      const values = methods.getValues();
-      const { valid, failedStep } = await validateAllSteps(values);
-      if (!valid) {
-        if (shouldJumpOnSubmit) {
-          if (failedStep) {
-            const failedIndex = visibleSteps.indexOf(failedStep);
-            if (failedIndex >= 0) {
-              cancelPendingNavigation();
-              setCurrentStepIndex(failedIndex);
-            }
-          } else {
-            const targetStep = getFirstInvalidStep();
-            if (targetStep) {
-              const targetIndex = visibleSteps.indexOf(targetStep);
-              if (targetIndex >= 0) {
-                cancelPendingNavigation();
-                setCurrentStepIndex(targetIndex);
-              }
-            }
-          }
+      let values = methods.getValues();
+
+      if (shouldRunFullValidation) {
+        const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
+        if (!isFormValid) {
+          handleInvalidDuringSubmit(getFirstInvalidStep());
+          scrollToFirstError();
+          onValidationError?.(methods.formState.errors);
+          return;
         }
-        scrollToFirstError();
-        onValidationError?.(methods.formState.errors);
-        return;
+
+        values = methods.getValues();
+        const { valid, failedStep } = await validateAllSteps(values);
+        if (!valid) {
+          handleInvalidDuringSubmit(failedStep ?? getFirstInvalidStep());
+          scrollToFirstError();
+          onValidationError?.(methods.formState.errors);
+          return;
+        }
       }
 
       // Build submission payload (respect retainHidden)
@@ -700,7 +779,6 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     isSessionExpired,
     flushPendingValidation,
     methods,
-    shouldJumpOnSubmit,
     getFirstInvalidStep,
     onValidationError,
     validateAllSteps,
@@ -709,8 +787,12 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     isOfflineError,
     getErrorStatus,
     saveDraftAfterFailure,
-    cancelPendingNavigation,
     onSubmit,
+    handleInvalidDuringSubmit,
+    isReviewStep,
+    reviewNavigation.validate,
+    validateCurrentStep,
+    currentStepId,
   ]);
 
   const handleSubmitEvent = React.useCallback(
@@ -755,8 +837,12 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     let nextStepId: string | undefined;
     if (!treatAsTerminal) {
       nextStepId =
-        transitionEngineRef.current.getNextStep(schema, currentStepConfig.id, methods.getValues()) ??
-        undefined;
+        transitionEngineRef.current.getNextStep(
+          schema,
+          currentStepConfig.id,
+          methods.getValues(),
+          { navigationReviewPolicy: reviewNavigation },
+        ) ?? undefined;
       if (nextStepId && !visibleSteps.includes(nextStepId)) {
         nextStepId = undefined;
       }
@@ -813,6 +899,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   const handlePrevious = React.useCallback(() => {
     if (isSessionExpired || !currentStepId) return;
+    if (isReviewStep && reviewNavigation.freezeNavigation) return;
 
     const previousFromHistory = stepHistory[stepHistory.length - 1];
     const fallbackIndex = visibleSteps.indexOf(currentStepId) - 1;
@@ -826,7 +913,41 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setStepHistory((history) => history.slice(0, -1));
       setCurrentStepIndex(previousIndex);
     }
-  }, [isSessionExpired, currentStepId, stepHistory, visibleSteps, cancelPendingNavigation]);
+  }, [
+    isSessionExpired,
+    currentStepId,
+    stepHistory,
+    visibleSteps,
+    cancelPendingNavigation,
+    isReviewStep,
+    reviewNavigation.freezeNavigation,
+  ]);
+
+  const handleReviewSectionEdit = React.useCallback(
+    (stepId: string) => {
+      if (isSessionExpired) return;
+      const targetIndex = visibleSteps.indexOf(stepId);
+      if (targetIndex < 0) return;
+
+      cancelPendingNavigation();
+      if (currentStepId) {
+        setStepHistory((history) => {
+          if (history[history.length - 1] === currentStepId) {
+            return history;
+          }
+          return [...history, currentStepId];
+        });
+      }
+      setHighlightedReviewSection(null);
+      setCurrentStepIndex(targetIndex);
+    },
+    [
+      isSessionExpired,
+      visibleSteps,
+      cancelPendingNavigation,
+      currentStepId,
+    ],
+  );
 
   // Utilities
   const focusField = React.useCallback((fieldName: string) => {
@@ -1002,6 +1123,79 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   const widgetDefinitions = schema.ui?.widgets ?? {};
 
+  const reviewSummaryValues = React.useMemo(() => {
+    if (!isReviewStep) return null;
+    return buildSubmissionSummary(watchedValues, {
+      schema,
+      visibleSteps,
+      retainHidden: schema.metadata?.retainHidden === true,
+      visibilityController: visibilityControllerRef.current,
+    });
+  }, [
+    isReviewStep,
+    watchedValues,
+    schema,
+    visibleSteps,
+    schema.metadata?.retainHidden,
+  ]);
+
+  const reviewSections = React.useMemo(() => {
+    if (!isReviewStep || !reviewSummaryValues) {
+      return [] as Array<{
+        stepId: string;
+        title: string;
+        description?: string;
+        entries: Array<{ field: string; label: string; value: string }>;
+      }>;
+    }
+
+    const summaryRecord = reviewSummaryValues as Record<string, unknown>;
+    const sections: Array<{
+      stepId: string;
+      title: string;
+      description?: string;
+      entries: Array<{ field: string; label: string; value: string }>;
+    }> = [];
+
+    for (const stepId of visibleSteps) {
+      if (stepId === reviewNavigation.stepId) continue;
+      const stepConfig = schema.steps.find((step) => step.id === stepId);
+      if (!stepConfig) continue;
+      const fields = stepFieldMap.get(stepId);
+      const entries: Array<{ field: string; label: string; value: string }> = [];
+
+      if (fields) {
+        fields.forEach((field) => {
+          if (!Object.prototype.hasOwnProperty.call(summaryRecord, field)) {
+            return;
+          }
+          entries.push({
+            field,
+            label: widgetDefinitions[field]?.label ?? field,
+            value: formatSummaryValue(summaryRecord[field]),
+          });
+        });
+      }
+
+      sections.push({
+        stepId,
+        title: stepConfig.title,
+        description: stepConfig.description,
+        entries,
+      });
+    }
+
+    return sections;
+  }, [
+    isReviewStep,
+    reviewSummaryValues,
+    visibleSteps,
+    reviewNavigation.stepId,
+    schema.steps,
+    stepFieldMap,
+    widgetDefinitions,
+  ]);
+
   return (
     <FormProvider {...methods}>
       <form
@@ -1091,6 +1285,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
             currentStep={currentStepId}
             onStepSelect={(stepId) => {
               if (isSessionExpired) return;
+              if (isReviewStep && reviewNavigation.freezeNavigation) return;
               const targetIndex = visibleSteps.indexOf(stepId);
               if (targetIndex >= 0 && targetIndex <= currentStepIndex) {
                 cancelPendingNavigation();
@@ -1110,66 +1305,128 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
             </div>
 
             <div className="space-y-6 p-6">
-              <div className="space-y-4">
-                {Object.entries(stepProperties).map(([fieldName]) => {
-                  if (!visibleFields.includes(fieldName)) return null;
+              {isReviewStep ? (
+                <div className="space-y-4" data-testid="review-summary">
+                  {reviewSections.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No responses captured yet.</p>
+                  ) : (
+                    reviewSections.map((section) => {
+                      const hasErrors = errorStepSet.has(section.stepId);
+                      const isHighlighted = highlightedReviewSection === section.stepId;
+                      return (
+                        <div
+                          key={section.stepId}
+                          id={`review-section-${section.stepId}`}
+                          data-testid={`review-section-${section.stepId}`}
+                          data-has-errors={hasErrors ? 'true' : 'false'}
+                          data-highlighted={isHighlighted ? 'true' : 'false'}
+                          className={cn(
+                            'rounded-lg border p-4',
+                            hasErrors ? 'border-destructive/40 bg-destructive/5' : 'border-border',
+                            isHighlighted ? 'ring-2 ring-primary' : null,
+                          )}
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
+                              {section.description ? (
+                                <p className="text-sm text-muted-foreground">{section.description}</p>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              className="inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                              onClick={() => handleReviewSectionEdit(section.stepId)}
+                              disabled={isSessionExpired}
+                            >
+                              Edit
+                            </button>
+                          </div>
 
-                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                  if (!uiConfig) {
-                    console.warn(`No widget configuration found for field: ${fieldName}`);
-                    return null;
-                  }
+                          {section.entries.length > 0 ? (
+                            <dl className="mt-4 space-y-2">
+                              {section.entries.map((entry) => (
+                                <div
+                                  key={entry.field}
+                                  className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
+                                >
+                                  <dt className="text-sm font-medium text-muted-foreground">{entry.label}</dt>
+                                  <dd className="whitespace-pre-wrap text-sm text-foreground sm:text-right">
+                                    {entry.value}
+                                  </dd>
+                                </div>
+                              ))}
+                            </dl>
+                          ) : (
+                            <p className="mt-4 text-sm text-muted-foreground">No responses provided.</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(stepProperties).map(([fieldName]) => {
+                    if (!visibleFields.includes(fieldName)) return null;
 
-                  const {
-                    component,
-                    label,
-                    placeholder,
-                    helpText,
-                    description,
-                    className: widgetClassName,
-                    options,
-                    disabled,
-                    readOnly,
-                    ...componentProps
-                  } = uiConfig;
-
-                  const widget: WidgetType = component ?? 'Text';
-                  const fieldError =
-                    methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
-                  const errorMessage = (() => {
-                    if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                      return (fieldError as { message?: string }).message ?? 'Invalid value';
+                    const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
+                    if (!uiConfig) {
+                      console.warn(`No widget configuration found for field: ${fieldName}`);
+                      return null;
                     }
-                    if (typeof fieldError === 'string') return fieldError;
-                    return undefined;
-                  })();
 
-                  const isRequired = Array.isArray(currentStepSchema.required)
-                    ? currentStepSchema.required.includes(fieldName)
-                    : false;
+                    const {
+                      component,
+                      label,
+                      placeholder,
+                      helpText,
+                      description,
+                      className: widgetClassName,
+                      options,
+                      disabled,
+                      readOnly,
+                      ...componentProps
+                    } = uiConfig;
 
-                  return (
-                    <FieldFactory
-                      key={fieldName}
-                      name={fieldName}
-                      label={label ?? fieldName}
-                      widget={widget}
-                      placeholder={placeholder}
-                      description={description}
-                      helpText={helpText}
-                      className={widgetClassName as string | undefined}
-                      disabled={mode === 'view' || disabled || isSessionExpired}
-                      readOnly={readOnly}
-                      required={isRequired}
-                      control={methods.control}
-                      rules={undefined}
-                      options={options}
-                      componentProps={componentProps as Record<string, unknown>}
-                      error={errorMessage}
-                    />
-                  );
-                })}
-              </div>
+                    const widget: WidgetType = component ?? 'Text';
+                    const fieldError =
+                      methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
+                    const errorMessage = (() => {
+                      if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+                        return (fieldError as { message?: string }).message ?? 'Invalid value';
+                      }
+                      if (typeof fieldError === 'string') return fieldError;
+                      return undefined;
+                    })();
+
+                    const isRequired = Array.isArray(currentStepSchema.required)
+                      ? currentStepSchema.required.includes(fieldName)
+                      : false;
+
+                    return (
+                      <FieldFactory
+                        key={fieldName}
+                        name={fieldName}
+                        label={label ?? fieldName}
+                        widget={widget}
+                        placeholder={placeholder}
+                        description={description}
+                        helpText={helpText}
+                        className={widgetClassName as string | undefined}
+                        disabled={mode === 'view' || disabled || isSessionExpired}
+                        readOnly={readOnly}
+                        required={isRequired}
+                        control={methods.control}
+                        rules={undefined}
+                        options={options}
+                        componentProps={componentProps as Record<string, unknown>}
+                        error={errorMessage}
+                      />
+                    );
+                  })}
+                </div>
+              )}
 
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
             </div>
@@ -1180,17 +1437,17 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               <button
                 type="button"
                 onClick={handlePrevious}
-                disabled={currentStepIndex === 0 || isSessionExpired}
+                disabled={currentStepIndex === 0 || isSessionExpired || isReviewFrozen}
                 className={cn(
                   'rounded-md border border-input px-4 py-2 text-sm font-medium text-foreground transition-colors',
-                  (currentStepIndex === 0 || isSessionExpired) && 'opacity-50',
+                  (currentStepIndex === 0 || isSessionExpired || isReviewFrozen) && 'opacity-50',
                 )}
               >
                 Previous
               </button>
 
               <div className="flex gap-2">
-                {currentStepIndex < visibleSteps.length - 1 ? (
+                {!isReviewStep && currentStepIndex < visibleSteps.length - 1 ? (
                   <button
                     type="button"
                     onClick={handleNext}

@@ -1,3 +1,5 @@
+import type { ResolvedReviewNavigationPolicy } from './schema.types';
+
 export type Rule = ComparisonRule | LogicalRule | CustomRule | AlwaysRule;
 
 export interface BaseRule {
@@ -56,6 +58,7 @@ export type TransitionGuard = (
 
 export interface TransitionContext extends RuleContext {
   guards?: Record<string, TransitionGuard>;
+  navigationReviewPolicy?: ResolvedReviewNavigationPolicy;
   [key: string]: unknown;
 }
 
