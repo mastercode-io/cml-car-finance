@@ -1,5 +1,5 @@
 import type { ComputedField, DataSourceMap } from './computed.types';
-import type { FeatureFlagName } from './features.types';
+import type { BooleanFeatureFlagName, JumpToFirstInvalidMode } from './features.types';
 import type { JSONSchema } from './json-schema.types';
 import type { Rule, StepTransition } from './rules.types';
 import type { UIDefinition } from './ui.types';
@@ -34,6 +34,18 @@ export interface FormStep {
   helpText?: string;
 }
 
+export interface ReviewNavigationPolicy {
+  stepId?: string;
+  terminal?: boolean;
+  validate?: 'form' | 'step';
+  freezeNavigation?: boolean;
+}
+
+export interface NavigationConfig {
+  review?: ReviewNavigationPolicy;
+  jumpToFirstInvalidOn?: JumpToFirstInvalidMode;
+}
+
 export interface UnifiedFormSchema {
   $id: string;
   version: string;
@@ -46,7 +58,12 @@ export interface UnifiedFormSchema {
   computed?: ComputedField[];
   dataSources?: DataSourceMap;
   validation?: ValidationConfig;
-  features?: Partial<Record<FeatureFlagName, boolean>> & { [key: string]: boolean | undefined };
+  features?:
+    | (Partial<Record<BooleanFeatureFlagName, boolean>> &
+        Partial<Record<'nav.jumpToFirstInvalidOn', JumpToFirstInvalidMode>> &
+        { [key: string]: boolean | string | undefined })
+    | undefined;
+  navigation?: NavigationConfig;
 }
 
 export interface SchemaVersionMeta {

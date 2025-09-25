@@ -152,14 +152,53 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const [isSessionExpired, setSessionExpired] = React.useState(false);
   const submitInFlightRef = React.useRef(false);
   const navDedupeEnabled = useFlag('nav.dedupeToken');
+  const reviewFreezeEnabled = useFlag('nav.reviewFreeze');
+  const jumpToFirstInvalidFlag = useFlag('nav.jumpToFirstInvalidOn', 'submit');
 
-  const beginNavigation = React.useCallback(() => {
+  const reviewNavigation = React.useMemo(() => {
+    const base = schema.navigation?.review ?? {};
+    const stepId = base.stepId ?? 'review';
+    const freezeNavigation = reviewFreezeEnabled ? true : base.freezeNavigation ?? false;
+    const terminal = reviewFreezeEnabled ? true : base.terminal ?? false;
+    const validate = reviewFreezeEnabled ? base.validate ?? 'form' : base.validate;
+
+    return {
+      stepId,
+      freezeNavigation,
+      terminal,
+      validate,
+    };
+  }, [reviewFreezeEnabled, schema.navigation?.review]);
+
+  const jumpToFirstInvalidOn = React.useMemo(
+    () => schema.navigation?.jumpToFirstInvalidOn ?? jumpToFirstInvalidFlag,
+    [jumpToFirstInvalidFlag, schema.navigation?.jumpToFirstInvalidOn],
+  );
+
+  const shouldJumpOnSubmit = jumpToFirstInvalidOn !== 'never';
+  const shouldJumpOnNext = jumpToFirstInvalidOn === 'next';
+
+  const bumpNavigationToken = React.useCallback(() => {
     if (!navDedupeEnabled) {
       return 0;
     }
     navigationTokenRef.current += 1;
     return navigationTokenRef.current;
   }, [navDedupeEnabled]);
+
+  const beginNavigation = React.useCallback(() => {
+    if (!navDedupeEnabled) {
+      return 0;
+    }
+    return bumpNavigationToken();
+  }, [bumpNavigationToken, navDedupeEnabled]);
+
+  const cancelPendingNavigation = React.useCallback(() => {
+    if (!navDedupeEnabled) {
+      return;
+    }
+    bumpNavigationToken();
+  }, [bumpNavigationToken, navDedupeEnabled]);
 
   const isNavigationTokenCurrent = React.useCallback(
     (token: number) => {
@@ -309,13 +348,34 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   React.useEffect(() => {
     if (currentStepIndex >= visibleSteps.length && visibleSteps.length > 0) {
+      cancelPendingNavigation();
       setCurrentStepIndex(visibleSteps.length - 1);
     }
-  }, [currentStepIndex, visibleSteps]);
+  }, [cancelPendingNavigation, currentStepIndex, visibleSteps]);
 
   const stepFieldMap = React.useMemo(() => {
     return new Map(schema.steps.map((step) => [step.id, new Set(getStepFieldNames(step, schema))]));
   }, [schema]);
+
+  const getFirstInvalidStep = React.useCallback((): string | undefined => {
+    const flattened = flattenFieldErrors(methods.formState.errors);
+    for (const stepId of visibleSteps) {
+      const fields = stepFieldMap.get(stepId);
+      if (!fields) {
+        continue;
+      }
+
+      const hasError = flattened.some(({ name }) => {
+        const rootField = name.split('.')[0];
+        return rootField && fields.has(rootField);
+      });
+
+      if (hasError) {
+        return stepId;
+      }
+    }
+    return undefined;
+  }, [methods.formState.errors, stepFieldMap, visibleSteps]);
 
   const stepErrorsFromState = React.useMemo(() => {
     const flattened = flattenFieldErrors(methods.formState.errors);
@@ -569,6 +629,16 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
       const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
       if (!isFormValid) {
+        if (shouldJumpOnSubmit) {
+          const targetStep = getFirstInvalidStep();
+          if (targetStep) {
+            const targetIndex = visibleSteps.indexOf(targetStep);
+            if (targetIndex >= 0) {
+              cancelPendingNavigation();
+              setCurrentStepIndex(targetIndex);
+            }
+          }
+        }
         scrollToFirstError();
         onValidationError?.(methods.formState.errors);
         return;
@@ -577,10 +647,22 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       const values = methods.getValues();
       const { valid, failedStep } = await validateAllSteps(values);
       if (!valid) {
-        if (failedStep) {
-          const failedIndex = visibleSteps.indexOf(failedStep);
-          if (failedIndex >= 0) {
-            setCurrentStepIndex(failedIndex);
+        if (shouldJumpOnSubmit) {
+          if (failedStep) {
+            const failedIndex = visibleSteps.indexOf(failedStep);
+            if (failedIndex >= 0) {
+              cancelPendingNavigation();
+              setCurrentStepIndex(failedIndex);
+            }
+          } else {
+            const targetStep = getFirstInvalidStep();
+            if (targetStep) {
+              const targetIndex = visibleSteps.indexOf(targetStep);
+              if (targetIndex >= 0) {
+                cancelPendingNavigation();
+                setCurrentStepIndex(targetIndex);
+              }
+            }
           }
         }
         scrollToFirstError();
@@ -658,7 +740,9 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setSubmitting(false);
     }
   }, [
+    cancelPendingNavigation,
     flushPendingValidation,
+    getFirstInvalidStep,
     getErrorStatus,
     isOfflineError,
     isSessionExpired,
@@ -668,7 +752,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     onValidationError,
     saveDraftAfterFailure,
     schema,
-    setCurrentStepIndex,
+    shouldJumpOnSubmit,
     validateAllSteps,
     visibleSteps,
   ]);
@@ -690,6 +774,16 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     const isValid = await validateCurrentStep();
     if (!isValid) {
       scrollToFirstError();
+      if (shouldJumpOnNext) {
+        const targetStep = getFirstInvalidStep();
+        if (targetStep) {
+          const targetIndex = visibleSteps.indexOf(targetStep);
+          if (targetIndex >= 0) {
+            cancelPendingNavigation();
+            setCurrentStepIndex(targetIndex);
+          }
+        }
+      }
       return;
     }
 
@@ -699,14 +793,21 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
     clearStepError(currentStepId);
 
-    let nextStepId: string | undefined =
-      transitionEngineRef.current.getNextStep(schema, currentStepConfig.id, methods.getValues()) ??
-      undefined;
-    if (nextStepId && !visibleSteps.includes(nextStepId)) {
-      nextStepId = undefined;
-    }
-    if (!nextStepId) {
-      nextStepId = visibleSteps[currentStepIndex + 1];
+    const isReviewStep = currentStepId === reviewNavigation.stepId;
+    const treatAsTerminal =
+      isReviewStep && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
+
+    let nextStepId: string | undefined;
+    if (!treatAsTerminal) {
+      nextStepId =
+        transitionEngineRef.current.getNextStep(schema, currentStepConfig.id, methods.getValues()) ??
+        undefined;
+      if (nextStepId && !visibleSteps.includes(nextStepId)) {
+        nextStepId = undefined;
+      }
+      if (!nextStepId) {
+        nextStepId = visibleSteps[currentStepIndex + 1];
+      }
     }
 
     if (navDedupeEnabled && nextStepId === currentStepId) {
@@ -739,18 +840,22 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       await handleFormSubmit();
     }
   }, [
+    cancelPendingNavigation,
     beginNavigation,
     clearStepError,
     currentStepConfig,
     currentStepId,
     currentStepIndex,
     currentStepSchema,
+    getFirstInvalidStep,
     handleFormSubmit,
     isNavigationTokenCurrent,
     isSessionExpired,
     methods,
     navDedupeEnabled,
+    reviewNavigation,
     schema,
+    shouldJumpOnNext,
     validateCurrentStep,
     visibleSteps,
   ]);
@@ -768,10 +873,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     }
     const previousIndex = visibleSteps.indexOf(targetStep);
     if (previousIndex >= 0) {
+      cancelPendingNavigation();
       setStepHistory((history) => history.slice(0, -1));
       setCurrentStepIndex(previousIndex);
     }
-  }, [currentStepId, isSessionExpired, stepHistory, visibleSteps]);
+  }, [cancelPendingNavigation, currentStepId, isSessionExpired, stepHistory, visibleSteps]);
 
   const focusField = React.useCallback((fieldName: string) => {
     if (typeof document === 'undefined') {
@@ -837,6 +943,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setCompletedSteps([]);
       setErrorSteps([]);
       setStepHistory([]);
+      cancelPendingNavigation();
       setCurrentStepIndex(0);
       visibilityControllerRef.current.clearCache();
       reset(resolvedInitialData, {
@@ -863,6 +970,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setSessionActionPending(null);
     }
   }, [
+    cancelPendingNavigation,
     ensurePersistenceManager,
     reset,
     resolvedInitialData,
@@ -912,8 +1020,10 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           schema.steps.findIndex((step) => step.id === draft.currentStep),
           0,
         );
+        cancelPendingNavigation();
         setCurrentStepIndex(targetIndex >= 0 ? targetIndex : 0);
       } else {
+        cancelPendingNavigation();
         setCurrentStepIndex(0);
       }
 
@@ -935,6 +1045,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setSessionActionPending(null);
     }
   }, [
+    cancelPendingNavigation,
     ensurePersistenceManager,
     reset,
     schema.steps,
@@ -1039,6 +1150,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               }
               const targetIndex = visibleSteps.indexOf(stepId);
               if (targetIndex >= 0 && targetIndex <= currentStepIndex) {
+                cancelPendingNavigation();
                 setCurrentStepIndex(targetIndex);
               }
             }}

@@ -39,6 +39,7 @@ export interface StepTransition {
   when?: Rule;
   default?: boolean;
   guard?: string;
+  allowCycle?: boolean;
 }
 
 export interface TransitionHistoryEntry {
