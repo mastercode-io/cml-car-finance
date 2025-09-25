@@ -24,7 +24,9 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "clean": "node -e \"const fs=require('fs');const path=require('path');const dist=path.join(process.cwd(),'dist');const tsb=path.join(process.cwd(),'tsconfig.tsbuildinfo');fs.rmSync(dist,{recursive:true,force:true});fs.rmSync(tsb,{force:true});\"",
+    "build": "npm run clean && tsc -p tsconfig.json && node ../../scripts/fix-form-engine-dist.js",
+    "size": "npm run build && size-limit --config ../../.size-limit.cjs"
   },
   "peerDependencies": {
     "react": "^18.2.0",

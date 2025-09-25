@@ -1,7 +1,5 @@
 import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import * as ReactHookForm from 'react-hook-form';
-
 import type { UnifiedFormSchema } from '@form-engine/types';
 import { FormRenderer } from '@form-engine/index';
 import { ValidationEngine } from '../../src/validation/ajv-setup';
@@ -231,25 +229,18 @@ describe('FormRenderer', () => {
   it('ignores stale navigation tokens when a newer navigation completes first', async () => {
     process.env.NEXT_PUBLIC_FLAGS = 'nav.dedupeToken=true';
     const schema = buildSchema();
-    const triggerResolvers: Array<() => Promise<boolean>> = [];
-    const originalUseForm = ReactHookForm.useForm;
-    const useFormSpy = jest
-      .spyOn(ReactHookForm, 'useForm')
-      .mockImplementation(((options?: Parameters<typeof originalUseForm>[0]) => {
-        const methods = originalUseForm(options);
-        const originalTrigger = methods.trigger.bind(methods);
-        methods.trigger = jest.fn((...args: Parameters<typeof originalTrigger>) => {
-          return new Promise<boolean>((resolve) => {
-            triggerResolvers.push(() => {
-              return originalTrigger(...args).then((result) => {
-                resolve(result);
-                return result;
-              });
-            });
-          });
-        }) as typeof methods.trigger;
-        return methods;
-      }) as typeof ReactHookForm.useForm);
+
+    // Intercept validation so we can resolve validations out of order
+    const validationResolvers: Array<() => void> = [];
+    const validationSpy = jest
+      .spyOn(ValidationEngine.prototype, 'validate')
+      .mockImplementation(((() => {
+        return new Promise<Awaited<ReturnType<ValidationEngine['validate']>>>((resolve) => {
+          validationResolvers.push(() =>
+            resolve({ valid: true, errors: [], duration: 0 }),
+          );
+        });
+      }) as unknown) as ValidationEngine['validate']);
 
     const nextSpy = jest
       .spyOn(TransitionEngine.prototype, 'getNextStep')
@@ -269,29 +260,32 @@ describe('FormRenderer', () => {
       fireEvent.click(nextButton);
       fireEvent.click(nextButton);
 
-      expect(triggerResolvers).toHaveLength(2);
+      expect(validationResolvers).toHaveLength(2);
 
+      // Resolve the second validation first (newer token)
       await act(async () => {
-        await triggerResolvers[1]();
+        validationResolvers[1]();
+        await Promise.resolve();
       });
 
       await waitFor(() => {
         expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
       });
-
       expect(nextSpy).toHaveBeenCalledTimes(1);
 
+      // Now resolve the first (stale) validation; it should be ignored
       await act(async () => {
-        await triggerResolvers[0]();
+        validationResolvers[0]();
+        await Promise.resolve();
       });
 
       await waitFor(() => {
         expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
       });
-
       expect(nextSpy).toHaveBeenCalledTimes(1);
     } finally {
-      useFormSpy.mockRestore();
+      validationSpy.mockRestore();
+      validationResolvers.length = 0;
       nextSpy.mockRestore();
     }
   });
@@ -796,7 +790,6 @@ describe('FormRenderer', () => {
       .spyOn(ValidationEngine.prototype, 'validate')
       .mockResolvedValue({ valid: true, errors: [] });
 
-
     const schema = buildSchemaWithConditional(false);
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     const onValidationError = jest.fn();
@@ -857,15 +850,12 @@ describe('FormRenderer', () => {
     );
 
     validateSpy.mockRestore();
-
-
   });
 
   it('retains hidden field values when schema metadata retainHidden is true', async () => {
     const validateSpy = jest
       .spyOn(ValidationEngine.prototype, 'validate')
       .mockResolvedValue({ valid: true, errors: [] });
-
 
     const schema = buildSchemaWithConditional(true);
     const onSubmit = jest.fn().mockResolvedValue(undefined);
@@ -911,7 +901,6 @@ describe('FormRenderer', () => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
     });
 
-
     validateSpy.mockRestore();
     expect(onValidationError).not.toHaveBeenCalled();
 
@@ -920,16 +909,17 @@ describe('FormRenderer', () => {
       loyaltyId: 'StillHere',
       showExtras: 'no',
     });
-
-
   });
 
   it('calls onSubmit only once when submit is triggered multiple times quickly', async () => {
     const schema = buildSchema();
     let resolveSubmit: (() => void) | undefined;
-    const onSubmit = jest.fn(() => new Promise<void>((resolve) => {
-      resolveSubmit = resolve;
-    }));
+    const onSubmit = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
 
     render(<FormRenderer schema={schema} onSubmit={onSubmit} />);
 

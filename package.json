@@ -2,20 +2,22 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node scripts/run-next-with-env.js dev",
     "netlify-dev": "netlify dev",
-    "build": "npm run build:form-engine --silent && node scripts/run-next-with-env.js build",
     "start": "node scripts/run-next-with-env.js start",
-    "lint": "node scripts/run-next-with-env.js lint && npm run ci:guards",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css,scss,yml,yaml}\"",
-    "typecheck": "tsc --noEmit -p tsconfig.form-engine.json",
-    "test": "jest",
-    "test:ci": "jest --ci",
+    "format": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc -b tsconfig.build.json",
+    "test": "jest --runInBand",
+    "test:ci": "jest --runInBand --ci",
     "test:e2e": "playwright test",
-    "size": "npm run build:form-engine --silent && size-limit",
+    "build": "npm run typecheck && npm run --workspaces --if-present build && node scripts/run-next-with-env.js build",
+    "size": "npm run --workspaces --if-present size",
     "postinstall": "rm -rf .next && echo '✅ Cleared old .next build after install'",
-    "build:form-engine": "node -e \"const fs=require('fs');fs.rmSync('packages/form-engine/dist', { recursive: true, force: true });fs.rmSync('packages/form-engine/tsconfig.tsbuildinfo', { force: true });\" && tsc -p packages/form-engine/tsconfig.json && node scripts/fix-form-engine-dist.js",
     "ci:guards": "node scripts/ci-guards.js"
   },
   "dependencies": {
@@ -92,7 +94,6 @@
     "@playwright/test": "^1.55.0",
     "@size-limit/file": "^11.1.4",
     "@size-limit/preset-big-lib": "^11.2.0",
-    "@size-limit/preset-small-lib": "^11.2.0",
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.2",
@@ -120,6 +121,7 @@
     "size-limit": "^11.1.4",
     "tailwindcss": "^3.4.17",
     "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }

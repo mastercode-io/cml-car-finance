@@ -5,10 +5,11 @@
 | P3-00        | Feature flags & staged rollout                     | P0  | `codex/p3v2-00-feature-flags` | _pending_   | In Review    | ✅ fmt/lint/type/test/build/size   | Flags provider + renderer gates implemented; defaults OFF in demo. Docs added. |
 | P3-01        | Fix P2 regressions (GIR 0AA, repeater, offline)    | P0  | `codex/p3v2-01-regressions`   | _pending_   | In Progress  | ✅ fmt/lint/type/build · ⚠️ test   | Postcode accepts **GIR 0AA**; Repeater focus mgmt added; offline retry WIP tests. |
 | P3-02        | Validation strategy & debounce                     | P0  | `codex/p3v2-02-validation`    | _pending_   | **Merged**   | ✅ fmt/lint/type/test/build/size   | Debounced `onChange` (120ms) + `onBlur` strategy honored; docs updated. |
+| **P3-NAV-00**| Environment & CI bootstrap                        | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Node 20.14 pinned; npm workspaces install + mandatory dev tooling unblocks CI. |
 | **P3-NAV-01**| Terminal step semantics (resolver)                 | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Terminal steps now stay put; awaiting downstream flag wiring. |
-| **P3-NAV-02**| Deterministic resolution (guards/default)          | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt · ⚠️ lint/type/test/build/size (missing deps) | Deterministic guard-first resolver + default validation; tests added. |
+| **P3-NAV-02**| Deterministic resolution (guards/default)          | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Deterministic guard-first resolver + default validation; tests added. |
 | **P3-NAV-03**| Review freeze + validation policy                   | P0  | `codex/p3v2-nav-03-review`    |             | TODO         |                                    | `nav.reviewFreeze`, `nav.jumpToFirstInvalidOn` |
-| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt · ⚠️ lint/type/test/build/size (missing deps) | `nav.dedupeToken` gate ignores stale tokens + self-transitions; unit coverage added. |
+| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | `nav.dedupeToken` gate ignores stale tokens + self-transitions; unit coverage added. |
 | **P3-NAV-05**| Schema linter rules (CI blocking)                   | P0  | `codex/p3v2-nav-05-linter`    |             | TODO         |                                    | dup defaults, cycles, unknown targets |
 | **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     |             | TODO         |                                    | terminal/null, precedence |
 | **P3-NAV-07**| Integration & E2E tests                             | P0  | `codex/p3v2-nav-07-e2e`       |             | TODO         |                                    | Review stays; submit bounce-once |
@@ -27,4 +28,4 @@
 
 **Legend:** Status = TODO → In Progress → Review → Merged
 
-_Last updated: 2025-09-25 00:22:00Z
+_Last updated: 2025-09-25 08:02:41Z
