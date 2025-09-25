@@ -11,7 +11,7 @@
 | **P3-NAV-03**| Review freeze + validation policy                   | P0  | `codex/p3v2-nav-03-review`    | _pending_   | In Review  | ✅ fmt/lint/type/test/build/size   | Review terminal policy behind `nav.reviewFreeze`; default jump-to-invalid on submit; integration coverage added. |
 | **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex/p3v2-nav-04-dedupe`    | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | `nav.dedupeToken` cancels stale forward nav when users go back; duplicate transitions dropped with unit coverage. |
 | **P3-NAV-05**| Schema linter rules (CI blocking)                   | P0  | `codex/p3v2-nav-05-linter`    | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Linter enforces dup IDs, defaults, unknown targets, cycles; warns on missing terminal. |
-| **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     |             | TODO         |                                    | terminal/null, precedence |
+| **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Guard precedence + terminal null coverage verified. |
 | **P3-NAV-07**| Integration & E2E tests                             | P0  | `codex/p3v2-nav-07-e2e`       |             | TODO         |                                    | Review stays; submit bounce-once |
 | **P3-NAV-08**| Analytics loop detector (P1)                        | P1  | `codex/p3v2-nav-08-analytics` |             | TODO         |                                    | optional, can ship later |
 | P3-03        | Review step (summary-only)                          | P0  |                                |             | BLOCKED      |                                    | **Unblock after P3-NAV** |
@@ -28,4 +28,4 @@
 
 **Legend:** Status = TODO → In Progress → Review → Merged
 
-_Last updated: 2025-09-25 09:47:27Z
+_Last updated: 2025-09-25 13:49:20Z

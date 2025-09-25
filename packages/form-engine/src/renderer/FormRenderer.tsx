@@ -780,7 +780,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           if (navDedupeEnabled && history[history.length - 1] === currentStepId) {
             return history;
           }
-        return [...history, currentStepId];
+          return [...history, currentStepId];
         });
         setCurrentStepIndex(nextIndex);
         return;
