@@ -4,6 +4,7 @@ import {
   RuleEvaluator,
   SchemaValidator,
   ValidationEngine,
+  lintNavigationSchema,
 } from '@form-engine/index';
 
 import type { JSONSchema, UnifiedFormSchema } from '@form-engine/index';
@@ -30,7 +31,7 @@ describe('SchemaValidator', () => {
         },
       },
     ],
-    transitions: [{ from: 'step-1', to: 'step-1', default: true }],
+    transitions: [{ from: 'step-1', to: 'step-1', default: true, allowCycle: true }],
     ui: {
       widgets: {
         name: {
@@ -45,6 +46,11 @@ describe('SchemaValidator', () => {
     const result = validator.validateSchema(baseSchema);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:no-terminal' }),
+      ]),
+    );
   });
 
   it('flags invalid schemas', () => {
@@ -92,6 +98,106 @@ describe('SchemaValidator', () => {
 
     const result = validator.validateSchema(schema);
     expect(result.valid).toBe(true);
+  });
+
+  it('flags navigation issues surfaced by the linter', () => {
+    const schema: UnifiedFormSchema = {
+      ...baseSchema,
+      steps: [
+        ...baseSchema.steps,
+        { ...baseSchema.steps[0]!, id: 'step-1' },
+      ],
+    };
+
+    const result = validator.validateSchema(schema);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:duplicate-step' }),
+      ]),
+    );
+  });
+});
+
+describe('lintNavigationSchema', () => {
+  const baseStep = {
+    id: 'alpha',
+    title: 'Alpha',
+    schema: { type: 'object', properties: { field: { type: 'string' } } },
+  } as const;
+
+  const buildSchema = (overrides: Partial<UnifiedFormSchema>): UnifiedFormSchema => ({
+    $id: 'lint-test',
+    version: '1.0.0',
+    metadata: {
+      title: 'Lint Test',
+      sensitivity: 'low',
+    },
+    steps: [baseStep, { ...baseStep, id: 'beta', title: 'Beta' }],
+    transitions: [
+      { from: 'alpha', to: 'beta', default: true },
+      { from: 'beta', to: 'alpha' },
+    ],
+    ui: { widgets: {} },
+    ...overrides,
+  });
+
+  it('raises an error when a cycle lacks allowCycle overrides', () => {
+    const { errors } = lintNavigationSchema(buildSchema({}));
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:cycle' }),
+      ]),
+    );
+  });
+
+  it('respects allowCycle overrides on cyclic transitions', () => {
+    const schema = buildSchema({
+      transitions: [
+        { from: 'alpha', to: 'beta', default: true },
+        { from: 'beta', to: 'alpha', allowCycle: true },
+      ],
+    });
+
+    const { errors } = lintNavigationSchema(schema);
+    expect(errors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:cycle' }),
+      ]),
+    );
+  });
+
+  it('detects multiple defaults from the same step', () => {
+    const schema = buildSchema({
+      transitions: [
+        { from: 'alpha', to: 'beta', default: true },
+        { from: 'alpha', to: 'alpha', default: true, allowCycle: true },
+        { from: 'beta', to: 'alpha' },
+      ],
+    });
+
+    const { errors } = lintNavigationSchema(schema);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:multiple-defaults' }),
+      ]),
+    );
+  });
+
+  it('flags transitions that reference unknown targets', () => {
+    const schema = buildSchema({
+      transitions: [
+        { from: 'alpha', to: 'gamma', default: true },
+        { from: 'beta', to: 'alpha' },
+      ],
+    });
+
+    const { errors } = lintNavigationSchema(schema);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ keyword: 'navigation:unknown-to' }),
+      ]),
+    );
   });
 });
 

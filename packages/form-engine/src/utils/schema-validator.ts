@@ -2,6 +2,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
 import type { CompiledSchema, JSONSchema, UnifiedFormSchema, ValidationResult } from '../types';
+import { lintNavigationSchema } from './navigation-linter';
 
 const UNIFIED_SCHEMA_META: JSONSchema = {
   $id: 'https://schemas.cml.local/unified-form-schema.json',
@@ -75,6 +76,7 @@ const UNIFIED_SCHEMA_META: JSONSchema = {
           to: { type: 'string' },
           when: { type: 'object' },
           default: { type: 'boolean' },
+          allowCycle: { type: 'boolean' },
         },
       },
     },
@@ -213,20 +215,25 @@ export class SchemaValidator {
   }
 
   validateSchema(schema: UnifiedFormSchema): ValidationResult {
-    const valid = this.ajv.validate(UNIFIED_SCHEMA_META.$id!, schema);
+    const ajvValid = this.ajv.validate(UNIFIED_SCHEMA_META.$id!, schema);
+    const ajvErrors = (this.ajv.errors || []).map((error: any) => ({
+      path: error.instancePath,
+      message: error.message || 'Schema validation error',
+      keyword: error.keyword,
+      property:
+        error.params && 'missingProperty' in error.params
+          ? String(error.params.missingProperty)
+          : undefined,
+      params: error.params as Record<string, unknown>,
+    }));
+
+    const { errors: lintErrors, warnings } = lintNavigationSchema(schema);
+    const errors = [...ajvErrors, ...lintErrors];
 
     return {
-      valid: Boolean(valid),
-      errors: (this.ajv.errors || []).map((error: any) => ({
-        path: error.instancePath,
-        message: error.message || 'Schema validation error',
-        keyword: error.keyword,
-        property:
-          error.params && 'missingProperty' in error.params
-            ? String(error.params.missingProperty)
-            : undefined,
-        params: error.params as Record<string, unknown>,
-      })),
+      valid: Boolean(ajvValid) && lintErrors.length === 0,
+      errors,
+      warnings,
     };
   }
 

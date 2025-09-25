@@ -32,6 +32,7 @@ export { StepValidator } from './validation/step-validator';
 export { ValidationWorkerClient } from './validation/worker-client';
 
 export { SchemaValidator } from './utils/schema-validator';
+export { lintNavigationSchema, type NavigationLintResult } from './utils/navigation-linter';
 
 export {
   PersistenceManager,

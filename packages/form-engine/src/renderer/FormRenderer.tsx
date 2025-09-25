@@ -31,9 +31,8 @@ const formatDuration = (ms: number): string => {
   const seconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return [hours, minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
+    return [hours, minutes, seconds].map((v) => v.toString().padStart(2, '0')).join(':');
   }
-
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
@@ -49,18 +48,14 @@ const buildSubmissionSummary = (
   { schema, visibleSteps, retainHidden, visibilityController }: SubmissionSummaryOptions,
 ): Record<string, unknown> => {
   const sanitizedValues = { ...values };
-  delete sanitizedValues._meta;
+  delete (sanitizedValues as any)._meta;
 
-  if (retainHidden) {
-    return sanitizedValues;
-  }
+  if (retainHidden) return sanitizedValues;
 
   const schemaFields = new Set<string>();
   schema.steps.forEach((step) => {
     const stepSchema = resolveStepSchema(step, schema);
-    Object.keys(stepSchema.properties ?? {}).forEach((field) => {
-      schemaFields.add(field);
-    });
+    Object.keys(stepSchema.properties ?? {}).forEach((field) => schemaFields.add(field));
   });
 
   const visibleFieldSet = new Set<string>();
@@ -76,7 +71,6 @@ const buildSubmissionSummary = (
       summary[key] = sanitizedValues[key];
     }
   });
-
   return summary;
 };
 
@@ -139,9 +133,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const sessionTimeoutMs = React.useMemo(() => {
     const configuredTimeout = schema.metadata?.timeout;
     const minutes = typeof configuredTimeout === 'number' ? configuredTimeout : 30;
-    if (!minutes || minutes <= 0) {
-      return 0;
-    }
+    if (!minutes || minutes <= 0) return 0;
     return minutes * 60 * 1000;
   }, [schema.metadata?.timeout]);
 
@@ -385,7 +377,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   React.useEffect(() => {
     setErrorSteps((prev) => {
       const unique = Array.from(new Set(stepErrorsFromState));
-      if (unique.length === prev.length && unique.every((step) => prev.includes(step))) {
+      if (unique.length === prev.length && unique.every((s) => prev.includes(s))) {
         return prev;
       }
       return unique;
@@ -788,7 +780,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           if (navDedupeEnabled && history[history.length - 1] === currentStepId) {
             return history;
           }
-          return [...history, currentStepId];
+        return [...history, currentStepId];
         });
         setCurrentStepIndex(nextIndex);
         return;
