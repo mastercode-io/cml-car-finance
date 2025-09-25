@@ -86,6 +86,7 @@ export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   duration?: number;
+  warnings?: ValidationError[];
 }
 
 export type CompiledSchema = (data: unknown) => boolean | Promise<boolean>;

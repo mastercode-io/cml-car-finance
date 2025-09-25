@@ -175,6 +175,72 @@ describe('TransitionEngine', () => {
       'Step "step1" has multiple default transitions defined.',
     );
   });
+
+  it('evaluates guard-based transitions before the default fallback', () => {
+    const engine = new TransitionEngine();
+    const guardedSchema: UnifiedFormSchema = {
+      ...schema,
+      steps: [
+        ...schema.steps,
+        { id: 'step4', title: 'Step 4', schema: { type: 'object', properties: {} } },
+      ],
+      transitions: [
+        { from: 'step1', to: 'step2', guard: 'allowAdvance' },
+        { from: 'step1', to: 'step3', guard: 'allowFallback' },
+        { from: 'step1', to: 'step4', default: true },
+      ],
+    };
+
+    const context = {
+      guards: {
+        allowAdvance: () => true,
+        allowFallback: () => true,
+      },
+    };
+
+    expect(engine.getNextStep(guardedSchema, 'step1', {}, context)).toBe('step2');
+  });
+
+  it('falls back to the default transition when guards decline', () => {
+    const engine = new TransitionEngine();
+    const guardedSchema: UnifiedFormSchema = {
+      ...schema,
+      steps: [
+        ...schema.steps,
+        { id: 'step4', title: 'Step 4', schema: { type: 'object', properties: {} } },
+      ],
+      transitions: [
+        { from: 'step1', to: 'step2', guard: 'allowAdvance' },
+        { from: 'step1', to: 'step3', guard: 'allowFallback' },
+        { from: 'step1', to: 'step4', default: true },
+      ],
+    };
+
+    const context = {
+      guards: {
+        allowAdvance: () => false,
+        allowFallback: () => false,
+      },
+    };
+
+    expect(engine.getNextStep(guardedSchema, 'step1', {}, context)).toBe('step4');
+  });
+
+  it('returns null when guard transitions decline and no default is defined', () => {
+    const engine = new TransitionEngine();
+    const terminalSchema: UnifiedFormSchema = {
+      ...schema,
+      transitions: [{ from: 'step1', to: 'step2', guard: 'allowAdvance' }],
+    };
+
+    const context = {
+      guards: {
+        allowAdvance: () => false,
+      },
+    };
+
+    expect(engine.getNextStep(terminalSchema, 'step1', {}, context)).toBeNull();
+  });
 });
 
 describe('XStateAdapter', () => {
