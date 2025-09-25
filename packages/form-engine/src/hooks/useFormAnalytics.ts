@@ -71,17 +71,9 @@ export function useFormAnalytics(
     };
   }, [formId, schemaVersion, serializedConfig]);
 
-  const trackStepView = useCallback(
-    (stepId: string) => {
-      analyticsRef.current?.trackEvent(
-        'step_viewed',
-        { formId, schemaVersion, stepId },
-        'navigation',
-        { formId, schemaVersion, stepId, sensitive: false },
-      );
-    },
-    [formId, schemaVersion],
-  );
+  const trackStepView = useCallback((stepId: string) => {
+    analyticsRef.current?.trackStepView(stepId);
+  }, []);
 
   const trackFieldInteraction = useCallback(
     (fieldName: string, value: unknown, eventType: 'focus' | 'blur' | 'change') => {
