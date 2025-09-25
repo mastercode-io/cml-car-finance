@@ -109,7 +109,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   const persistenceRef = React.useRef<PersistenceManager | null>(null);
   const persistencePromiseRef = React.useRef<Promise<PersistenceManager | null> | null>(null);
 
-  // Navigation de-dupe token to ignore stale/self navigation when enabled by flag
+  // Navigation de-dupe token (ignore stale/self navigation when enabled by flag)
   const navigationTokenRef = React.useRef(0);
 
   const { config: validationConfig, modes: validationModes } = useResolvedValidation(schema);
@@ -187,10 +187,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   }, [bumpNavigationToken, navDedupeEnabled]);
 
   const isNavigationTokenCurrent = React.useCallback(
-    (token: number) => {
-      if (!navDedupeEnabled) return true;
-      return navigationTokenRef.current === token;
-    },
+    (token: number) => (!navDedupeEnabled ? true : navigationTokenRef.current === token),
     [navDedupeEnabled],
   );
 
@@ -713,6 +710,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     getErrorStatus,
     saveDraftAfterFailure,
     cancelPendingNavigation,
+    onSubmit,
   ]);
 
   const handleSubmitEvent = React.useCallback(
@@ -914,13 +912,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     } finally {
       setSessionActionPending(null);
     }
-  }, [
-    sessionTimeoutMs,
-    ensurePersistenceManager,
-    cancelPendingNavigation,
-    reset,
-    resolvedInitialData,
-  ]);
+  }, [sessionTimeoutMs, ensurePersistenceManager, cancelPendingNavigation, reset, resolvedInitialData]);
 
   const handleRestoreSession = React.useCallback(async () => {
     if (!sessionTimeoutMs) return;
@@ -985,13 +977,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     } finally {
       setSessionActionPending(null);
     }
-  }, [
-    sessionTimeoutMs,
-    ensurePersistenceManager,
-    reset,
-    schema.steps,
-    cancelPendingNavigation,
-  ]);
+  }, [sessionTimeoutMs, ensurePersistenceManager, reset, schema.steps, cancelPendingNavigation]);
 
   // Layout selection by feature flag
   const layoutType = schema.ui?.layout?.type ?? 'single-column';
@@ -1039,44 +1025,61 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           </div>
         ) : null}
 
-        {sessionBanner ? (
-          <div
-            role={sessionBanner.type === 'error' ? 'alert' : 'status'}
-            aria-live={sessionBanner.type === 'error' ? 'assertive' : 'polite'}
-            className={cn(
-              'rounded-md border px-4 py-3 text-sm',
-              sessionBanner.type === 'error'
-                ? 'border-red-200 bg-red-50 text-red-900'
-                : sessionBanner.type === 'warning'
-                  ? 'border-amber-200 bg-amber-50 text-amber-900'
-                  : 'border-slate-200 bg-slate-50 text-slate-900',
-            )}
-          >
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="font-medium">{sessionBanner.message}</p>
-              {isSessionExpired ? (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => void handleRestartSession()}
-                    disabled={sessionActionPending !== null}
-                  >
-                    {sessionActionPending === 'restart' ? 'Restarting…' : 'Start new session'}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-input px-3 py-1.5 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => void handleRestoreSession()}
-                    disabled={sessionActionPending !== null}
-                  >
-                    {sessionActionPending === 'restore' ? 'Restoring…' : 'Restore saved draft'}
-                  </button>
-                </div>
-              ) : null}
+        {(() => {
+          const warningThresholdMs = Math.min(sessionTimeoutMs || 0, 5 * 60 * 1000);
+          const sessionBanner =
+            !sessionTimeoutMs || timeRemainingMs == null
+              ? null
+              : isSessionExpired
+                ? {
+                    type: 'error' as const,
+                    message:
+                      'Your session expired. Start a new session or restore a saved draft to continue.',
+                  }
+                : {
+                    type:
+                      timeRemainingMs <= warningThresholdMs ? ('warning' as const) : ('info' as const),
+                    message: `Session expires in ${formatDuration(timeRemainingMs)}.`,
+                  };
+          return sessionBanner ? (
+            <div
+              role={sessionBanner.type === 'error' ? 'alert' : 'status'}
+              aria-live={sessionBanner.type === 'error' ? 'assertive' : 'polite'}
+              className={cn(
+                'rounded-md border px-4 py-3 text-sm',
+                sessionBanner.type === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-900'
+                  : sessionBanner.type === 'warning'
+                    ? 'border-amber-200 bg-amber-50 text-amber-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-900',
+              )}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p className="font-medium">{sessionBanner.message}</p>
+                {isSessionExpired ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void handleRestartSession()}
+                      disabled={sessionActionPending !== null}
+                    >
+                      {sessionActionPending === 'restart' ? 'Restarting…' : 'Start new session'}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-input px-3 py-1.5 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void handleRestoreSession()}
+                      disabled={sessionActionPending !== null}
+                    >
+                      {sessionActionPending === 'restore' ? 'Restoring…' : 'Restore saved draft'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null;
+        })()}
 
         <div className="space-y-6">
           <StepProgress
@@ -1111,7 +1114,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
                 {Object.entries(stepProperties).map(([fieldName]) => {
                   if (!visibleFields.includes(fieldName)) return null;
 
-                  const uiConfig = widgetDefinitions[fieldName];
+                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
                   if (!uiConfig) {
                     console.warn(`No widget configuration found for field: ${fieldName}`);
                     return null;
