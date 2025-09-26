@@ -18,6 +18,7 @@ import { ValidationEngine } from '../validation/ajv-setup';
 import { createAjvResolver } from '../validation/rhf-resolver';
 import { cn } from '../utils/cn';
 import type { PersistenceManager } from '../persistence/PersistenceManager';
+import { formatValue as formatReviewValue } from '../utils/review-format';
 
 import { ErrorSummary } from './ErrorSummary';
 import { StepProgress } from './StepProgress';
@@ -40,33 +41,6 @@ const formatDuration = (ms: number): string => {
     return [hours, minutes, seconds].map((v) => v.toString().padStart(2, '0')).join(':');
   }
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-};
-
-const formatSummaryValue = (value: unknown): string => {
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return '—';
-    }
-    return value.map((item) => formatSummaryValue(item)).join(', ');
-  }
-
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch (error) {
-      return String(value);
-    }
-  }
-
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No';
-  }
-
-  return String(value);
 };
 
 type SubmissionSummaryOptions = {
@@ -335,7 +309,8 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     : undefined;
   currentStepSchemaRef.current = currentStepSchema;
 
-  const isReviewStep = currentStepId === reviewNavigation.stepId;
+  const reviewStepId = schema.navigation?.review?.stepId ?? 'review';
+  const isReviewStep = currentStepId === reviewStepId;
   const isReviewFrozen = isReviewStep && reviewNavigation.freezeNavigation;
 
   // Callbacks for external listeners
@@ -510,17 +485,38 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     };
   }, []);
 
-  // Apply AJV errors to RHF
+  // Apply AJV errors to RHF — fixed mapping for `required`
   const applyValidationErrors = React.useCallback(
     (errors: ValidationError[]) => {
       methods.clearErrors();
-      errors.forEach((error) => {
-        const path = error.path.replace(/^\//, '').replace(/\//g, '.');
-        const name = (path || error.property || '').trim();
+
+      errors.forEach((err) => {
+        const instancePath = (err as any).instancePath;
+        const rawBase =
+          typeof instancePath === 'string'
+            ? instancePath
+            : typeof err.path === 'string'
+              ? err.path
+              : '';
+
+        const basePath = rawBase.replace(/^\//, '').replace(/\//g, '.');
+
+        let name = (basePath || (err as any).property || '').trim();
+
+        if (
+          ((err as any).keyword === 'required' || err.keyword === 'required') &&
+          (err as any).params &&
+          typeof (err as any).params.missingProperty === 'string'
+        ) {
+          const missing = (err as any).params.missingProperty as string;
+          name = name ? `${name}.${missing}` : missing;
+        }
+
         if (!name) return;
+
         methods.setError(name as any, {
-          type: error.keyword || 'manual',
-          message: error.message,
+          type: (err.keyword as string) || 'manual',
+          message: err.message || 'Invalid value',
         });
       });
     },
@@ -830,7 +826,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
     clearStepError(currentStepId);
 
-    const isReviewStep = currentStepId === reviewNavigation.stepId;
+    const isReviewStep = currentStepId === reviewStepId;
     const treatAsTerminal =
       isReviewStep && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
 
@@ -1111,11 +1107,9 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   }
 
   const stepProperties = currentStepSchema.properties ?? {};
-  const visibleFields = visibilityControllerRef.current.getVisibleFields(
-    schema,
-    currentStepId,
-    watchedValues,
-  );
+  const visibleFields = isReviewStep
+    ? Object.keys(stepProperties)
+    : visibilityControllerRef.current.getVisibleFields(schema, currentStepId, watchedValues);
 
   const stepStatusList = visibleSteps.map((stepId) =>
     getStepStatus(stepId, currentStepId, completedSteps, errorStepSet),
@@ -1145,7 +1139,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
         stepId: string;
         title: string;
         description?: string;
-        entries: Array<{ field: string; label: string; value: string }>;
+        entries: Array<{ field: string; label: string; value: React.ReactNode }>;
       }>;
     }
 
@@ -1154,15 +1148,15 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       stepId: string;
       title: string;
       description?: string;
-      entries: Array<{ field: string; label: string; value: string }>;
+      entries: Array<{ field: string; label: string; value: React.ReactNode }>;
     }> = [];
 
     for (const stepId of visibleSteps) {
-      if (stepId === reviewNavigation.stepId) continue;
+      if (stepId === reviewStepId) continue;
       const stepConfig = schema.steps.find((step) => step.id === stepId);
       if (!stepConfig) continue;
       const fields = stepFieldMap.get(stepId);
-      const entries: Array<{ field: string; label: string; value: string }> = [];
+      const entries: Array<{ field: string; label: string; value: React.ReactNode }> = [];
 
       if (fields) {
         fields.forEach((field) => {
@@ -1172,7 +1166,12 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           entries.push({
             field,
             label: widgetDefinitions[field]?.label ?? field,
-            value: formatSummaryValue(summaryRecord[field]),
+            value: formatReviewValue(
+              summaryRecord[field],
+              field,
+              schema,
+              widgetDefinitions[field],
+            ),
           });
         });
       }
@@ -1190,7 +1189,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     isReviewStep,
     reviewSummaryValues,
     visibleSteps,
-    reviewNavigation.stepId,
+    reviewStepId,
     schema.steps,
     stepFieldMap,
     widgetDefinitions,
@@ -1365,68 +1364,68 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
                     })
                   )}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(stepProperties).map(([fieldName]) => {
-                    if (!visibleFields.includes(fieldName)) return null;
+              ) : null}
 
-                    const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                    if (!uiConfig) {
-                      console.warn(`No widget configuration found for field: ${fieldName}`);
-                      return null;
+              <div className="space-y-4">
+                {Object.entries(stepProperties).map(([fieldName]) => {
+                  if (!visibleFields.includes(fieldName)) return null;
+
+                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
+                  if (!uiConfig) {
+                    console.warn(`No widget configuration found for field: ${fieldName}`);
+                    return null;
+                  }
+
+                  const {
+                    component,
+                    label,
+                    placeholder,
+                    helpText,
+                    description,
+                    className: widgetClassName,
+                    options,
+                    disabled,
+                    readOnly,
+                    ...componentProps
+                  } = uiConfig;
+
+                  const widget: WidgetType = component ?? 'Text';
+                  const fieldError =
+                    methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
+                  const errorMessage = (() => {
+                    if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+                      return (fieldError as { message?: string }).message ?? 'Invalid value';
                     }
+                    if (typeof fieldError === 'string') return fieldError;
+                    return undefined;
+                  })();
 
-                    const {
-                      component,
-                      label,
-                      placeholder,
-                      helpText,
-                      description,
-                      className: widgetClassName,
-                      options,
-                      disabled,
-                      readOnly,
-                      ...componentProps
-                    } = uiConfig;
+                  const isRequired = Array.isArray(currentStepSchema.required)
+                    ? currentStepSchema.required.includes(fieldName)
+                    : false;
 
-                    const widget: WidgetType = component ?? 'Text';
-                    const fieldError =
-                      methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
-                    const errorMessage = (() => {
-                      if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                        return (fieldError as { message?: string }).message ?? 'Invalid value';
-                      }
-                      if (typeof fieldError === 'string') return fieldError;
-                      return undefined;
-                    })();
-
-                    const isRequired = Array.isArray(currentStepSchema.required)
-                      ? currentStepSchema.required.includes(fieldName)
-                      : false;
-
-                    return (
-                      <FieldFactory
-                        key={fieldName}
-                        name={fieldName}
-                        label={label ?? fieldName}
-                        widget={widget}
-                        placeholder={placeholder}
-                        description={description}
-                        helpText={helpText}
-                        className={widgetClassName as string | undefined}
-                        disabled={mode === 'view' || disabled || isSessionExpired}
-                        readOnly={readOnly}
-                        required={isRequired}
-                        control={methods.control}
-                        rules={undefined}
-                        options={options}
-                        componentProps={componentProps as Record<string, unknown>}
-                        error={errorMessage}
-                      />
-                    );
-                  })}
-                </div>
-              )}
+                  return (
+                    <FieldFactory
+                      key={fieldName}
+                      name={fieldName}
+                      label={label ?? fieldName}
+                      widget={widget}
+                      placeholder={placeholder}
+                      description={description}
+                      helpText={helpText}
+                      className={widgetClassName as string | undefined}
+                      disabled={mode === 'view' || disabled || isSessionExpired}
+                      readOnly={readOnly}
+                      required={isRequired}
+                      control={methods.control}
+                      rules={undefined}
+                      options={options}
+                      componentProps={componentProps as Record<string, unknown>}
+                      error={errorMessage}
+                    />
+                  );
+                })}
+              </div>
 
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
             </div>
