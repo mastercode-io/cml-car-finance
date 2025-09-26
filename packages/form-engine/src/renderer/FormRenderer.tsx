@@ -485,17 +485,38 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     };
   }, []);
 
-  // Apply AJV errors to RHF
+  // Apply AJV errors to RHF — fixed mapping for `required`
   const applyValidationErrors = React.useCallback(
     (errors: ValidationError[]) => {
       methods.clearErrors();
-      errors.forEach((error) => {
-        const path = error.path.replace(/^\//, '').replace(/\//g, '.');
-        const name = (path || error.property || '').trim();
+
+      errors.forEach((err) => {
+        const instancePath = (err as any).instancePath;
+        const rawBase =
+          typeof instancePath === 'string'
+            ? instancePath
+            : typeof err.path === 'string'
+              ? err.path
+              : '';
+
+        const basePath = rawBase.replace(/^\//, '').replace(/\//g, '.');
+
+        let name = (basePath || (err as any).property || '').trim();
+
+        if (
+          ((err as any).keyword === 'required' || err.keyword === 'required') &&
+          (err as any).params &&
+          typeof (err as any).params.missingProperty === 'string'
+        ) {
+          const missing = (err as any).params.missingProperty as string;
+          name = name ? `${name}.${missing}` : missing;
+        }
+
         if (!name) return;
+
         methods.setError(name as any, {
-          type: error.keyword || 'manual',
-          message: error.message,
+          type: (err.keyword as string) || 'manual',
+          message: err.message || 'Invalid value',
         });
       });
     },

@@ -293,6 +293,7 @@ export const demoFormSchema: UnifiedFormSchema = {
         properties: {
           confirmAccuracy: {
             type: 'boolean',
+            const: true,
           },
           coverLetter: {
             type: 'string',
