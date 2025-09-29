@@ -836,9 +836,9 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
     clearStepError(currentStepId);
 
-    const isReviewStep = currentStepId === reviewStepId;
+    const isReviewStepNow = currentStepId === reviewStepId;
     const treatAsTerminal =
-      isReviewStep && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
+      isReviewStepNow && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
 
     let nextStepId: string | undefined;
     if (!treatAsTerminal) {
@@ -947,12 +947,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setHighlightedReviewSection(null);
       setCurrentStepIndex(targetIndex);
     },
-    [
-      isSessionExpired,
-      visibleSteps,
-      cancelPendingNavigation,
-      currentStepId,
-    ],
+    [isSessionExpired, visibleSteps, cancelPendingNavigation, currentStepId],
   );
 
   // Utilities
@@ -1207,13 +1202,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       retainHidden: schema.metadata?.retainHidden === true,
       visibilityController: visibilityControllerRef.current,
     });
-  }, [
-    isReviewStep,
-    watchedValues,
-    schema,
-    visibleSteps,
-    schema.metadata?.retainHidden,
-  ]);
+  }, [isReviewStep, watchedValues, schema, visibleSteps, schema.metadata?.retainHidden]);
 
   const reviewSections = React.useMemo(() => {
     if (!isReviewStep || !reviewSummaryValues) {
@@ -1248,12 +1237,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           entries.push({
             field,
             label: widgetDefinitions[field]?.label ?? field,
-            value: formatReviewValue(
-              summaryRecord[field],
-              field,
-              schema,
-              widgetDefinitions[field],
-            ),
+            value: formatReviewValue(summaryRecord[field], field, schema, widgetDefinitions[field]),
           });
         });
       }
@@ -1267,24 +1251,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     }
 
     return sections;
-  }, [
-    isReviewStep,
-    reviewSummaryValues,
-    visibleSteps,
-    reviewStepId,
-    schema.steps,
-    stepFieldMap,
-    widgetDefinitions,
-  ]);
+  }, [isReviewStep, reviewSummaryValues, visibleSteps, reviewStepId, schema.steps, stepFieldMap, widgetDefinitions]);
 
   return (
     <FormProvider {...methods}>
-      <form
-        className={className}
-        data-layout={activeLayout}
-        onSubmit={handleSubmitEvent}
-        noValidate
-      >
+      <form className={className} data-layout={activeLayout} onSubmit={handleSubmitEvent} noValidate>
         {submissionFeedback ? (
           <div
             role={submissionFeedback.type === 'error' ? 'alert' : 'status'}
@@ -1462,7 +1433,6 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
                     if (!visibleFields.includes(fieldName)) return null;
                     const node = renderField(fieldName);
                     if (!node) return null;
-
                     return <React.Fragment key={fieldName}>{node}</React.Fragment>;
                   })
                 )}
@@ -1471,9 +1441,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
             </div>
 
-            <div
-              className={cn('flex items-center justify-between gap-4 border-t p-6', 'bg-muted/30')}
-            >
+            <div className={cn('flex items-center justify-between gap-4 border-t p-6', 'bg-muted/30')}>
               <button
                 type="button"
                 onClick={handlePrevious}
