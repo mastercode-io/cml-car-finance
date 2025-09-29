@@ -32,6 +32,9 @@ import {
 } from './utils';
 import { useResolvedValidation, useValidationStrategyEffects } from './useValidation';
 
+const INVALID_SUBMISSION_MESSAGE =
+  'Please review the highlighted fields: One or more fields require your attention.';
+
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -675,6 +678,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       if (shouldRunStepValidation) {
         const isStepValid = await validateCurrentStep();
         if (!isStepValid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(currentStepId);
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
@@ -687,6 +691,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       if (shouldRunFullValidation) {
         const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
         if (!isFormValid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(getFirstInvalidStep());
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
@@ -696,6 +701,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
         values = methods.getValues();
         const { valid, failedStep } = await validateAllSteps(values);
         if (!valid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(failedStep ?? getFirstInvalidStep());
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
