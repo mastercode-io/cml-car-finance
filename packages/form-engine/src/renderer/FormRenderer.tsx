@@ -22,6 +22,7 @@ import { formatValue as formatReviewValue } from '../utils/review-format';
 
 import { ErrorSummary } from './ErrorSummary';
 import { StepProgress } from './StepProgress';
+import { GridRenderer } from './layout/GridRenderer';
 import {
   flattenFieldErrors,
   getStepFieldNames,
@@ -1367,64 +1368,77 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               ) : null}
 
               <div className="space-y-4">
-                {Object.entries(stepProperties).map(([fieldName]) => {
-                  if (!visibleFields.includes(fieldName)) return null;
+                {activeLayout === 'grid' ? (
+                  <GridRenderer
+                    schema={schema}
+                    currentStepSchema={currentStepSchema}
+                    stepProperties={stepProperties}
+                    visibleFields={visibleFields}
+                    mode={mode}
+                    isSessionExpired={isSessionExpired}
+                  />
+                ) : (
+                  Object.entries(stepProperties).map(([fieldName]) => {
+                    if (!visibleFields.includes(fieldName)) return null;
 
-                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                  if (!uiConfig) {
-                    console.warn(`No widget configuration found for field: ${fieldName}`);
-                    return null;
-                  }
-
-                  const {
-                    component,
-                    label,
-                    placeholder,
-                    helpText,
-                    description,
-                    className: widgetClassName,
-                    options,
-                    disabled,
-                    readOnly,
-                    ...componentProps
-                  } = uiConfig;
-
-                  const widget: WidgetType = component ?? 'Text';
-                  const fieldError =
-                    methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
-                  const errorMessage = (() => {
-                    if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                      return (fieldError as { message?: string }).message ?? 'Invalid value';
+                    const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
+                    if (!uiConfig) {
+                      console.warn(`No widget configuration found for field: ${fieldName}`);
+                      return null;
                     }
-                    if (typeof fieldError === 'string') return fieldError;
-                    return undefined;
-                  })();
 
-                  const isRequired = Array.isArray(currentStepSchema.required)
-                    ? currentStepSchema.required.includes(fieldName)
-                    : false;
+                    const {
+                      component,
+                      label,
+                      placeholder,
+                      helpText,
+                      description,
+                      className: widgetClassName,
+                      options,
+                      disabled,
+                      readOnly,
+                      ...componentProps
+                    } = uiConfig;
 
-                  return (
-                    <FieldFactory
-                      key={fieldName}
-                      name={fieldName}
-                      label={label ?? fieldName}
-                      widget={widget}
-                      placeholder={placeholder}
-                      description={description}
-                      helpText={helpText}
-                      className={widgetClassName as string | undefined}
-                      disabled={mode === 'view' || disabled || isSessionExpired}
-                      readOnly={readOnly}
-                      required={isRequired}
-                      control={methods.control}
-                      rules={undefined}
-                      options={options}
-                      componentProps={componentProps as Record<string, unknown>}
-                      error={errorMessage}
-                    />
-                  );
-                })}
+                    const widget: WidgetType = component ?? 'Text';
+                    const fieldError =
+                      methods.formState.errors?.[
+                        fieldName as keyof typeof methods.formState.errors
+                      ];
+                    const errorMessage = (() => {
+                      if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+                        return (fieldError as { message?: string }).message ?? 'Invalid value';
+                      }
+                      if (typeof fieldError === 'string') return fieldError;
+                      return undefined;
+                    })();
+
+                    const isRequired = Array.isArray(currentStepSchema.required)
+                      ? currentStepSchema.required.includes(fieldName)
+                      : false;
+
+                    return (
+                      <FieldFactory
+                        key={fieldName}
+                        name={fieldName}
+                        label={label ?? fieldName}
+                        widget={widget}
+                        placeholder={placeholder}
+                        description={description}
+                        helpText={helpText}
+                        className={widgetClassName as string | undefined}
+                        disabled={mode === 'view' || disabled || isSessionExpired}
+                        readOnly={readOnly}
+                        required={isRequired}
+                        control={methods.control}
+                        rules={undefined}
+                        options={options}
+                        componentProps={componentProps as Record<string, unknown>}
+                        error={errorMessage}
+                      />
+                    );
+                  })
+                )}
               </div>
 
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
