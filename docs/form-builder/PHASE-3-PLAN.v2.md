@@ -1,110 +1,161 @@
-# PHASE-3-PLAN.v2 — Form Builder (Revised Sprint Scope)
+# PHASE-3-PLAN.v2.md
 
-**Branch:** `codex-form-builder`  
-**Owner:** Alex (Form Experience)  
-**Sprint:** Phase 3 (revised) — production-readiness first  
-**Reference:** PRD-Phase-3.md
+> **Phase 3 focus:** Production‑grade navigation guardrails, Review step, and **Layout V1** (flag‑gated grid with single‑column fallback). This revision adds the full Layout V1 plan and splits it into small, PR‑friendly subtasks.
 
 ---
 
-## Strategy (why this revision)
-Phase 3 refocuses on **production readiness** and **risk-first sequencing**:
-- Ship **feature flags/staged rollout** and fix **Phase-2 regressions** before landing high-surface work.
-- Implement **layout** as a **flagged wrapper** with a rock-solid single-column fallback.
-- Keep **Review** minimal (summary-only) and gate actual submit later.
-- Deliver **core widgets** needed by authors; keep UK lookup narrow (V1) behind a flag.
-- Add **KPI/perf hooks** and **degradation toggles** to monitor & protect UX at GA.
+## P3-04 — Layout V1 (Flag-Gated Grid; Single-Column Fallback)
 
----
+### Objectives
+- Introduce a responsive, accessible grid layout system for steps **without breaking existing forms**.
+- Keep current single‑column renderer as the default; enable grid via feature flag `gridLayout` or schema opt‑in.
+- Support basic composition: sections, rows, columns, and per‑field column spans.
+- No visual theming changes in this phase; no custom CSS frameworks required.
 
-## Scope Summary (P0 vs P1)
+### Non‑Goals (defer to Layout V2)
+- Designer‑level themes, tone, or token system.
+- Complex nested grids within widgets.
+- Drag‑and‑drop layout editor.
+- Cross‑step multi‑column flows.
 
-### P0 (must land for GA fitness)
-0. **Feature flags & staged rollout** (foundation)  
-1. **Phase-2 regressions** (GIR 0AA, Repeater focus, offline retry)  
-2. **Validation strategy & debounce** (honor schema) — **COMPLETED**  
-**P3-NAV.** **Navigation guardrails** (terminal steps, deterministic resolver, review freeze, jump-to-invalid policy, dedupe) — **prereq for P3-03**  
-3. **Review step (summary-only)** (no validation coupling yet)  
-4. **Layout V1 (grid+sections+colSpan)** behind flag + fallback  
-5. **MultiSelect widget**  
-6. **Time & DateTime widgets** (combined)  
-7. **UK Address Lookup (V1)** behind flag (provider chosen)  
-8. **Analytics KPI hooks & default wiring** (events ready for dashboards)  
-9. **Perf budgets & degradation toggles** (switches + eventing)
+### Feature Flags & Rollout
+- **Flag key:** `gridLayout`
+- **Default:** OFF
+- **Override:** `NEXT_PUBLIC_FLAGS=gridLayout=1`
+- **Schema opt‑in:** `schema.ui.layout.type: "grid"`; if flag OFF → renderer falls back to single‑column.
 
-### P1 (nice-to-have, defer if needed)
-- RadioGroup a11y polish  
-- Theme tokens → CSS vars  
-- Select “Add new…” (popover subform)  
-- Schema linter & authoring docs expansion
+### Schema Additions (back‑compatible)
+```ts
+// UnifiedFormSchema.ui
+ui?: {
+  layout?: {
+    type?: "single-column" | "grid";
+    gutter?: 8 | 12 | 16 | 24;            // default 16
+    columns?: 1 | 2 | 3 | 4 | 6 | 12;     // default 12
+    breakpoints?: {                       // optional, defaults sensible
+      sm?: number; md?: number; lg?: number; xl?: number;
+    };
+    sections?: Array<{
+      id: string;
+      title?: string;
+      description?: string;
+      rows: Array<{
+        columns: Array<{
+          span?: number;                  // 1..columns (default 12)
+          fields: string[];               // field names in render order
+        }>
+      }>
+    }>
+  };
+  widgets?: {
+    [field: string]: {
+      component?: WidgetType;
+      label?: string;
+      placeholder?: string;
+      description?: string;
+      helpText?: string;
+      className?: string;
+      options?: unknown;
+      disabled?: boolean;
+      readOnly?: boolean;
+      // NEW (optional hints; ignored by single‑column renderer):
+      layout?: {
+        colSpan?: number;                 // overrides column span if present
+        align?: "start" | "center" | "end" | "stretch";
+        size?: "sm" | "md" | "lg";
+      };
+    }
+  }
+}
+```
 
----
+### Rendering Rules
+- If `gridLayout` flag **ON** and `ui.layout.type === "grid"`, use **GridRenderer**; else use existing **SingleColumnRenderer**.
+- Section header (title/description) is optional; if provided, render above its rows.
+- Rows → columns; respect `span` and clamp to available `columns` (e.g., 12).
+- Missing/unknown fields in layout are ignored (warn); fields not referenced in layout are appended below as a single full‑width block (no data loss).
 
-## P3-NAV — Production-grade Navigation Guardrails (**P0**, prerequisite for P3-03)
+### Accessibility
+- DOM order == visual order in a row; keyboard tab order must follow visual flow.
+- Section headers use `<h3>` (or role=heading) to preserve a11y hierarchy.
+- No content reflow on validation; errors appear inline without shifting neighboring columns.
 
-**Goal:** Eliminate step loops and accidental rewinds (e.g., `legal → review → personal`) by making navigation **deterministic, explicit, and terminal-aware**, with safe rollout via feature flags.
+### Perf & Budgets (no regressions)
+- Keep current render budgets; GridRenderer should add **~0ms** on steps with ≤ 20 fields; ensure memoization of heavy maps.
 
-**Feature flags (ship dark first):**
-- `nav.terminalStep`
-- `nav.explicitMode`
-- `nav.reviewFreeze`
-- `nav.jumpToFirstInvalidOn` = `'submit' | 'next' | 'never'` (default: `'submit'`)
-- `nav.dedupeToken`
-
-**Deliverables & Acceptance:**
-1. **Terminal step semantics (resolver)**
-   - If current step has **no outgoing transitions** → return `null` (stay).  
-   - No fallback to first step’s default.
-2. **Deterministic resolution (resolver)**
-   - Per-step order: first matching **guarded** → the single **default** → `null`.  
-   - Reject multiple `default: true` from same step (lint error).
-3. **Review policy (renderer + config)**
-   - `navigation.review = { terminal: true, validate: 'form', freezeNavigation: true }` when `nav.reviewFreeze` is ON.  
-   - Reaching `review` never auto-navigates away; Submit validates whole form; Back returns.
-4. **Jump-to-first-invalid (policy)**
-   - Honored only on **submit** by default (configurable via `nav.jumpToFirstInvalidOn`).  
-   - No auto-bounces while sitting on Review.
-5. **Renderer dedupe & re-entrancy guard**
-   - Tokenize step changes; ignore duplicates and stale tokens; drop `next === current`.
-6. **Schema linter rules (CI-blocking)**
-   - Duplicate step IDs ❌; >1 default per step ❌; unknown targets ❌; cycles ❌ (unless `allowCycle: true`).  
-   - Warn if no terminal step is reachable.
-7. **Analytics hooks (P1)**
-   - Emit `nav_loop_detected` if oscillation between 2–3 steps occurs within 2s.
-8. **Tests**
-   - **Unit:** terminal → `null`; guard precedence; single default.  
-   - **Integration:** reach Review and **stay** while autosave/computed fire; submit invalid → single bounce to first invalid.  
-   - **E2E (keyboard-only):** Next/Back path reaches Review and stays; tab order intact.
-
-**Touch points:** transition resolver, FormRenderer nav reducer, schema linter, analytics.  
-**Rollout:** flags ON in demo/canary → observe → GA flip; keep kill-switch.
-
----
-
-## Work Breakdown (self-contained tasks)
-(Existing tasks retained; P3-NAV runs **before** P3-03)
-
-- **P3-00 — Feature Flags & Staged Rollout (P0)**
-- **P3-01 — Phase-2 Regressions Fix (P0)**
-- **P3-02 — Validation Strategy & Debounce (P0)** — **DONE**
-
-**→ P3-NAV (P0, prereq for P3-03)**
-
-- **P3-03 — Review Step (Summary-only) (P0)**
-- **P3-04 — Layout V1 (Flagged Wrapper) (P0)**
-- **P3-05 — MultiSelect (P0)**
-- **P3-06 — Time & DateTime (P0)**
-- **P3-07 — UK Address Lookup V1 (P0, flagged)**
-- **P3-08 — Analytics KPI Hooks (P0)**
-- **P3-09 — Perf Budgets & Degradation (P0)**
+### Acceptance Criteria
+- With `gridLayout=0` or `ui.layout.type !== "grid"` → form renders identical to single‑column today.
+- With `gridLayout=1` and minimal `ui.layout` grid → fields render in configured rows/columns.
+- Tab order equals left→right, top→bottom per row.
+- Forms without layout config still render correctly.
+- Snapshot & DOM‑order tests pass.
 
 ### Risks & Mitigations
-- **Layout blast radius** → **flagged** wrapper; strict single-column fallback.  
-- **Navigation loops** → **P3-NAV** guards + linter + tests.  
-- **Address API variance** → adapter + mock provider; manual fallback.
+- **Risk:** Grid touches rendering; regressions.
+  - **Mitigation:** Feature flag OFF by default; comprehensive tests; visual regression for demo.
+- **Risk:** Missing fields cause silent loss.
+  - **Mitigation:** Warn in dev; append unplaced fields at the end.
+- **Risk:** Lint fails on schema mistakes.
+  - **Mitigation:** Extend linter to validate layout (optional in V1).
 
-### Acceptance (Definition of Done)
-- All P0 tasks merged; CI green (fmt/lint/type/test/build/size)  
-- Visual snapshots (layout); a11y checks (Repeater, MultiSelect, Address listbox)  
-- Demo schema shows grid + review summary + widgets + lookup (flags can be on in demo)  
-- KPI/perf events visible in dev; redaction verified
+---
+
+## Work Breakdown (PR‑sized subtasks)
+
+**P3‑04A — Grid Schema Types & Guardrails**
+- Add TS types for `ui.layout` and `widgets[*].layout`.
+- Validate at parse time (soft warnings) when span > columns, unknown fields, or mismatched totals.
+- Unit tests for type guards and clamp logic.
+
+**P3‑04B — GridRenderer Shell (Flag‑Gated)**
+- Add `GridRenderer` component; wire selection in `FormRenderer` by flag + `ui.layout.type`.
+- Render sections/rows/columns containers with CSS Grid; no field rendering yet.
+- Unit tests: selection logic + SSR safety.
+
+**P3‑04C — Field Placement & Fallbacks**
+- Render actual fields in GridRenderer; obey `span`, field order, and column count.
+- Unplaced fields appended below as full‑width.
+- Unit tests for placement rules; snapshot tests.
+
+**P3‑04D — Responsive Breakpoints**
+- Add CSS variables for `columns` per breakpoint.
+- Ensure columns collapse gracefully to 1‑column on narrow viewports.
+- E2E (Playwright) smoke: viewport md→sm preserves order & tab focus.
+
+**P3‑04E — Sections (Titles, Descriptions, Landmarks)**
+- Render section headings with appropriate semantics.
+- Add landmark/aria attributes for a11y.
+- Unit tests for heading levels & DOM order.
+
+**P3‑04F — Per‑Widget Layout Hints**
+- Respect `ui.widgets[field].layout.colSpan/align/size` when column `span` not specified.
+- Tests for hint precedence and clamping.
+
+**P3‑04G — Error Rendering Stability**
+- Ensure inline errors do not cause grid jumps; maintain row heights as needed.
+- Unit tests: error injection keeps tab order and DOM order; screenshots optional.
+
+**P3‑04H — Demo Form Updates (Layout Opt‑in)**
+- Add minimal `ui.layout` to demo schema (two‑column rows in first steps; single‑column on review).
+- Keep flag OFF in demo by default; document how to enable.
+- Visual regression snapshots.
+
+**P3‑04I — Docs & Examples**
+- Update `FEATURES.md` and README with layout how‑to, examples, and flags.
+- Add a small schema snippet showing sections/rows/columns.
+
+---
+
+## Test Plan
+- Unit tests for: selection logic, field placement, span clamping, unplaced field fallback, section semantics, layout hints.
+- Integration: grid ON/OFF parity; tab order across columns; error rendering stability.
+- E2E (if available): keyboard‑only navigation through a grid step.
+- Visual snapshots for demo step with 2×2 grid.
+
+---
+
+## Rollout
+1. Land with flag OFF; merge frequently (≤400 LOC per PR).
+2. Enable in demo locally with `NEXT_PUBLIC_FLAGS=gridLayout=1` for review.
+3. Canary enable on one internal form after Phase 3 completion.
+4. GA after 1 week with no regressions.

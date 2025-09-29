@@ -1,31 +1,65 @@
-# PHASE-3-Tracker.v2 (Revised)
+# PHASE-3-Tracker.v2.md
 
-| ID           | Task                                               | Pri | Branch                         | PR # / Link | Status       | CI (fmt/lint/type/test/build/size) | Notes |
-|--------------|----------------------------------------------------|-----|--------------------------------|-------------|--------------|------------------------------------|-------|
-| P3-00        | Feature flags & staged rollout                     | P0  | `codex/p3v2-00-feature-flags` | _pending_   | In Review    | ✅ fmt/lint/type/test/build/size   | Flags provider + renderer gates implemented; defaults OFF in demo. Docs added. |
-| P3-01        | Fix P2 regressions (GIR 0AA, repeater, offline)    | P0  | `codex/p3v2-01-regressions`   | _pending_   | In Progress  | ✅ fmt/lint/type/build · ⚠️ test   | Postcode accepts **GIR 0AA**; Repeater focus mgmt added; offline retry WIP tests. |
-| P3-02        | Validation strategy & debounce                     | P0  | `codex/p3v2-02-validation`    | _pending_   | **Merged**   | ✅ fmt/lint/type/test/build/size   | Debounced `onChange` (120ms) + `onBlur` strategy honored; docs updated. |
-| **P3-NAV-00**| Environment & CI bootstrap                        | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Node 20.14 pinned; npm workspaces install + mandatory dev tooling unblocks CI. |
-| **P3-NAV-01**| Terminal step semantics (resolver)                 | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Terminal steps now stay put; awaiting downstream flag wiring. |
-| **P3-NAV-02**| Deterministic resolution (guards/default)          | P0  | `codex-form-builder-phase-3`  | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Deterministic guard-first resolver + default validation; tests added. |
-| **P3-NAV-03**| Review freeze + validation policy                   | P0  | `codex/p3v2-nav-03-review`    | _pending_   | In Review  | ✅ fmt/lint/type/test/build/size   | Review terminal policy behind `nav.reviewFreeze`; default jump-to-invalid on submit; integration coverage added. |
-| **P3-NAV-04**| Renderer dedupe/token guard                         | P0  | `codex/p3v2-nav-04-dedupe`    | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | `nav.dedupeToken` cancels stale forward nav when users go back; duplicate transitions dropped with unit coverage. |
-| **P3-NAV-05**| Schema linter rules (CI blocking)                   | P0  | `codex/p3v2-nav-05-linter`    | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Linter enforces dup IDs, defaults, unknown targets, cycles; warns on missing terminal. |
-| **P3-NAV-06**| Unit tests (resolver)                               | P0  | `codex/p3v2-nav-06-tests`     | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Guard precedence + terminal null coverage verified. |
-| **P3-NAV-07**| Integration & E2E tests                             | P0  | `codex/p3v2-nav-07-e2e`       | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | Playwright keyboard flow holds Review step & verifies tab order. |
-| **P3-NAV-08**| Analytics loop detector (P1)                        | P1  | `codex/p3-nav-08`             | _pending_   | In Review   | ✅ fmt/lint/type/test/build/size   | nav loop detection emits analytics event on rapid 2-3 step oscillations. |
-| P3-03        | Review step (summary-only)                          | P0  | `feat/p3-03-review-250925-200818` | _draft_     | In Review   | ✅ fmt/lint/type/test/build/size   | Draft PR adds terminal review policy, freeze handling, summary UI. Fixes: JSON summary → readable; Review fields render; tests added. **P3-03a:** Ajv `required` mapped to missing leaf (confirmAccuracy); highlight & integration test verified. |
-| P3-04        | Layout V1 (grid wrapper, flagged + fallback)        | P0  |                                |             | TODO         |                                    |       |
-| P3-05        | MultiSelect widget                                  | P0  |                                |             | TODO         |                                    |       |
-| P3-06        | Time & DateTime widgets                             | P0  |                                |             | TODO         |                                    |       |
-| P3-07        | UK Address Lookup V1 (flagged)                      | P0  |                                |             | TODO         |                                    |       |
-| P3-08        | Analytics KPI hooks & default wiring                | P0  |                                |             | TODO         |                                    |       |
-| P3-09        | Perf budgets & degradation toggles                  | P0  |                                |             | TODO         |                                    |       |
-| P3-10        | RadioGroup a11y polish                              | P1  |                                |             | TODO         |                                    |       |
-| P3-11        | Theme tokens → CSS vars                             | P1  |                                |             | TODO         |                                    |       |
-| P3-12        | Select “Add new…” (popover subform)                 | P1  |                                |             | TODO         |                                    |       |
-| P3-13        | Schema linter & authoring docs                      | P1  |                                |             | TODO         |                                    |       |
+> Status board for Phase 3. This revision appends **P3‑04 — Layout V1** subtasks. Prior completed items retained for continuity.
 
-**Legend:** Status = TODO → In Progress → Review → Merged
+## Legend
+- **Status:** `todo` | `in-progress` | `review` | `merged` | `blocked`
+- **Branch:** default for NAV/Review: `codex-form-builder-phase-3`; Layout: `codex-form-builder-layout-v1`
 
-_Last updated: 2025-09-25 13:49:20Z
+## Summary (high level)
+- **P3‑NAV (01..08):** ✅ merged
+- **P3‑03 Review step:** ✅ merged (including readable summary + confirm control)
+- **Infra prep & P3‑02a regression fix:** ✅ merged
+- **P3‑04 Layout V1:** 🚧 starting
+
+---
+
+## Detailed Tracker
+
+| ID | Title | Branch | Status | PR | Notes |
+|---|---|---|---|---|---|
+| P3-00 | Repo bootstrap & scripts | codex-form-builder-phase-3 | merged | link | Baseline tooling, scripts |
+| P3-01 | Validation strategy & debounce | codex-form-builder-phase-3 | merged | link | Configurable modes |
+| P3-02 | Build/test pipeline updates | codex-form-builder-phase-3 | merged | link | Initial infra |
+| P3-02a | FormRenderer summary regression fix + tests | codex-form-builder-phase-3 | merged | link | Tests green |
+| P3-NAV-01 | Terminal step semantics | codex-form-builder-phase-3 | merged | link | |
+| P3-NAV-02 | Deterministic transition resolution | codex-form-builder-phase-3 | merged | link | |
+| P3-NAV-03 | Review policy behind flags | codex-form-builder-phase-3 | merged | link | |
+| P3-NAV-04 | Renderer de-dupe/token guard | codex-form-builder-phase-3 | merged | link | |
+| P3-NAV-05 | Schema linter rules in CI | codex-form-builder-phase-3 | merged | link | |
+| P3-NAV-07 | E2E/Playwright smoke | codex-form-builder-phase-3 | merged | link | Container note: browsers not in image |
+| P3-NAV-08 | Analytics loop detector | codex-form-builder-phase-3 | merged | link | |
+| P3-03 | Review & Submit (readable summary + confirm) | codex-form-builder-phase-3 | merged | link | User-friendly review; confirm required |
+
+### New: Layout V1 (Grid; Flag-Gated)
+
+| ID | Title | Branch | Status | PR | Notes |
+|---|---|---|---|---|---|
+| P3-04A | Grid schema types & guardrails | codex-form-builder-layout-v1 | todo |  | Add TS types; clamp & soft warnings |
+| P3-04B | GridRenderer shell (flag-gated) | codex-form-builder-layout-v1 | todo |  | Select via flag+schema |
+| P3-04C | Field placement & fallbacks | codex-form-builder-layout-v1 | todo |  | Place fields; append unplaced |
+| P3-04D | Responsive breakpoints | codex-form-builder-layout-v1 | todo |  | CSS vars; md→sm collapse |
+| P3-04E | Sections (titles/landmarks) | codex-form-builder-layout-v1 | todo |  | a11y semantics |
+| P3-04F | Per‑widget layout hints | codex-form-builder-layout-v1 | todo |  | colSpan/align/size precedence |
+| P3-04G | Error rendering stability | codex-form-builder-layout-v1 | todo |  | No grid jump on errors |
+| P3-04H | Demo schema: opt‑in layout | codex-form-builder-layout-v1 | todo |  | Minimal 2‑col example |
+| P3-04I | Docs & examples | codex-form-builder-layout-v1 | todo |  | FEATURES.md/README updates |
+
+---
+
+## How to Run (quick)
+```bash
+# Enable grid locally
+export NEXT_PUBLIC_FLAGS="gridLayout=1,nav.dedupeToken=1,nav.reviewFreeze=1,nav.jumpToFirstInvalidOn=submit"
+
+npm run format
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+CI=1 npm run size
+```
+
+## Notes
+- Keep PRs ≤ 400 LOC. Each row above should land as a separate PR referencing this tracker.
+- Flag remains **OFF** by default in demo; reviewers can enable via `NEXT_PUBLIC_FLAGS`.
