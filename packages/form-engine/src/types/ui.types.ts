@@ -6,11 +6,41 @@ export interface UIDefinition {
   theme?: ThemeConfig;
 }
 
+export type LayoutBreakpoint = 'base' | 'sm' | 'md' | 'lg' | 'xl';
+
+export type ResponsiveLayoutValue<T> = {
+  base?: T;
+  sm?: T;
+  md?: T;
+  lg?: T;
+  xl?: T;
+};
+
+export interface GridLayoutFieldPlacement {
+  name: string;
+  colSpan?: ResponsiveLayoutValue<number> | number;
+  order?: ResponsiveLayoutValue<number>;
+  hide?: ResponsiveLayoutValue<boolean> | boolean;
+}
+
+export interface GridLayoutRow {
+  fields: GridLayoutFieldPlacement[];
+}
+
+export interface GridLayoutSection {
+  id: string;
+  title?: string;
+  description?: string;
+  rows: GridLayoutRow[];
+}
+
 export interface LayoutConfig {
   type?: 'single-column' | 'two-column' | 'grid';
-  columns?: number;
-  gutter?: number;
-  breakpoints?: Record<string, number>;
+  columns?: number | ResponsiveLayoutValue<number>;
+  gutter?: number | ResponsiveLayoutValue<number>;
+  rowGap?: number | ResponsiveLayoutValue<number>;
+  breakpoints?: Partial<Record<Exclude<LayoutBreakpoint, 'base'>, number>>;
+  sections?: GridLayoutSection[];
   groups?: LayoutGroup[];
 }
 
@@ -60,6 +90,13 @@ export interface WidgetConfig {
   minItems?: number;
   maxItems?: number;
   defaultItemValue?: Record<string, unknown>;
+  layout?: WidgetLayoutConfig;
+}
+
+export interface WidgetLayoutConfig {
+  colSpan?: ResponsiveLayoutValue<number> | number;
+  order?: ResponsiveLayoutValue<number>;
+  hide?: ResponsiveLayoutValue<boolean> | boolean;
 }
 
 export interface RepeaterItemConfig {

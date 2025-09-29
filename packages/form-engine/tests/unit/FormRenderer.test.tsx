@@ -1116,13 +1116,37 @@ describe('FormRenderer', () => {
 
   it('renders the grid layout container when the flag and schema opt in', () => {
     const schema = buildSchema();
-    schema.ui.layout = { type: 'grid' };
+    schema.ui.layout = {
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 2 } },
+                { name: 'lastName', colSpan: { base: 2 } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
     process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=true';
 
-    const { container } = render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+    const { container } = render(
+      <FormRenderer
+        schema={schema}
+        onSubmit={jest.fn()}
+        gridBreakpointOverride="base"
+      />,
+    );
 
     const form = container.querySelector('form');
     expect(form).toHaveAttribute('data-layout', 'grid');
-    expect(screen.getByTestId('grid-renderer-placeholder')).toBeInTheDocument();
+    const gridContainer = container.querySelector('[data-grid-breakpoint]');
+    expect(gridContainer).not.toBeNull();
+    expect(gridContainer?.querySelectorAll('[data-grid-field]').length).toBeGreaterThan(0);
   });
 });

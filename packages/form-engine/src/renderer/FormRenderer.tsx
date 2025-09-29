@@ -7,6 +7,7 @@ import { FieldFactory } from '../components/fields/FieldFactory';
 import { FeaturesProvider, useFlag } from '../context/features';
 import type {
   JSONSchema,
+  LayoutBreakpoint,
   ResolvedReviewNavigationPolicy,
   UnifiedFormSchema,
   ValidationError,
@@ -94,6 +95,7 @@ export interface FormRendererProps {
   onValidationError?: (errors: unknown) => void;
   mode?: 'create' | 'edit' | 'view';
   className?: string;
+  gridBreakpointOverride?: LayoutBreakpoint;
 }
 
 type StepValidationResult = {
@@ -110,6 +112,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   onValidationError,
   mode = 'create',
   className,
+  gridBreakpointOverride,
 }) => {
   const fallbackInitialDataRef = React.useRef<Record<string, unknown>>({});
   const resolvedInitialData = initialData ?? fallbackInitialDataRef.current;
@@ -833,9 +836,9 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
     clearStepError(currentStepId);
 
-    const isReviewStep = currentStepId === reviewStepId;
+    const isReviewStepNow = currentStepId === reviewStepId;
     const treatAsTerminal =
-      isReviewStep && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
+      isReviewStepNow && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
 
     let nextStepId: string | undefined;
     if (!treatAsTerminal) {
@@ -944,12 +947,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setHighlightedReviewSection(null);
       setCurrentStepIndex(targetIndex);
     },
-    [
-      isSessionExpired,
-      visibleSteps,
-      cancelPendingNavigation,
-      currentStepId,
-    ],
+    [isSessionExpired, visibleSteps, cancelPendingNavigation, currentStepId],
   );
 
   // Utilities
@@ -1124,6 +1122,78 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   const widgetDefinitions = schema.ui?.widgets ?? {};
 
+  const renderField = React.useCallback(
+    (fieldName: string): React.ReactNode => {
+      if (!visibleFields.includes(fieldName)) {
+        return null;
+      }
+
+      const uiConfig = widgetDefinitions[fieldName];
+      if (!uiConfig) {
+        console.warn(`No widget configuration found for field: ${fieldName}`);
+        return null;
+      }
+
+      const {
+        component,
+        label,
+        placeholder,
+        helpText,
+        description,
+        className: widgetClassName,
+        options,
+        disabled,
+        readOnly,
+        ...componentProps
+      } = uiConfig;
+
+      const widget: WidgetType = component ?? 'Text';
+      const fieldError = methods.formState.errors?.[
+        fieldName as keyof typeof methods.formState.errors
+      ];
+      const errorMessage = (() => {
+        if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+          return (fieldError as { message?: string }).message ?? 'Invalid value';
+        }
+        if (typeof fieldError === 'string') return fieldError;
+        return undefined;
+      })();
+
+      const isRequired = Array.isArray(currentStepSchema.required)
+        ? currentStepSchema.required.includes(fieldName)
+        : false;
+
+      return (
+        <FieldFactory
+          name={fieldName}
+          label={label ?? fieldName}
+          widget={widget}
+          placeholder={placeholder}
+          description={description}
+          helpText={helpText}
+          className={widgetClassName as string | undefined}
+          disabled={mode === 'view' || disabled || isSessionExpired}
+          readOnly={readOnly}
+          required={isRequired}
+          control={methods.control}
+          rules={undefined}
+          options={options}
+          componentProps={componentProps as Record<string, unknown>}
+          error={errorMessage}
+        />
+      );
+    },
+    [
+      visibleFields,
+      widgetDefinitions,
+      methods.control,
+      methods.formState.errors,
+      mode,
+      isSessionExpired,
+      currentStepSchema,
+    ],
+  );
+
   const reviewSummaryValues = React.useMemo(() => {
     if (!isReviewStep) return null;
     return buildSubmissionSummary(watchedValues, {
@@ -1132,13 +1202,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       retainHidden: schema.metadata?.retainHidden === true,
       visibilityController: visibilityControllerRef.current,
     });
-  }, [
-    isReviewStep,
-    watchedValues,
-    schema,
-    visibleSteps,
-    schema.metadata?.retainHidden,
-  ]);
+  }, [isReviewStep, watchedValues, schema, visibleSteps, schema.metadata?.retainHidden]);
 
   const reviewSections = React.useMemo(() => {
     if (!isReviewStep || !reviewSummaryValues) {
@@ -1173,12 +1237,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
           entries.push({
             field,
             label: widgetDefinitions[field]?.label ?? field,
-            value: formatReviewValue(
-              summaryRecord[field],
-              field,
-              schema,
-              widgetDefinitions[field],
-            ),
+            value: formatReviewValue(summaryRecord[field], field, schema, widgetDefinitions[field]),
           });
         });
       }
@@ -1192,24 +1251,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     }
 
     return sections;
-  }, [
-    isReviewStep,
-    reviewSummaryValues,
-    visibleSteps,
-    reviewStepId,
-    schema.steps,
-    stepFieldMap,
-    widgetDefinitions,
-  ]);
+  }, [isReviewStep, reviewSummaryValues, visibleSteps, reviewStepId, schema.steps, stepFieldMap, widgetDefinitions]);
 
   return (
     <FormProvider {...methods}>
-      <form
-        className={className}
-        data-layout={activeLayout}
-        onSubmit={handleSubmitEvent}
-        noValidate
-      >
+      <form className={className} data-layout={activeLayout} onSubmit={handleSubmitEvent} noValidate>
         {submissionFeedback ? (
           <div
             role={submissionFeedback.type === 'error' ? 'alert' : 'status'}
@@ -1377,72 +1423,17 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
                 {activeLayout === 'grid' ? (
                   <GridRenderer
                     schema={schema}
-                    currentStepSchema={currentStepSchema}
                     stepProperties={stepProperties}
                     visibleFields={visibleFields}
-                    mode={mode}
-                    isSessionExpired={isSessionExpired}
+                    renderField={renderField}
+                    testBreakpoint={gridBreakpointOverride}
                   />
                 ) : (
-                  Object.entries(stepProperties).map(([fieldName]) => {
+                  Object.keys(stepProperties).map((fieldName) => {
                     if (!visibleFields.includes(fieldName)) return null;
-
-                    const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                    if (!uiConfig) {
-                      console.warn(`No widget configuration found for field: ${fieldName}`);
-                      return null;
-                    }
-
-                    const {
-                      component,
-                      label,
-                      placeholder,
-                      helpText,
-                      description,
-                      className: widgetClassName,
-                      options,
-                      disabled,
-                      readOnly,
-                      ...componentProps
-                    } = uiConfig;
-
-                    const widget: WidgetType = component ?? 'Text';
-                    const fieldError =
-                      methods.formState.errors?.[
-                        fieldName as keyof typeof methods.formState.errors
-                      ];
-                    const errorMessage = (() => {
-                      if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                        return (fieldError as { message?: string }).message ?? 'Invalid value';
-                      }
-                      if (typeof fieldError === 'string') return fieldError;
-                      return undefined;
-                    })();
-
-                    const isRequired = Array.isArray(currentStepSchema.required)
-                      ? currentStepSchema.required.includes(fieldName)
-                      : false;
-
-                    return (
-                      <FieldFactory
-                        key={fieldName}
-                        name={fieldName}
-                        label={label ?? fieldName}
-                        widget={widget}
-                        placeholder={placeholder}
-                        description={description}
-                        helpText={helpText}
-                        className={widgetClassName as string | undefined}
-                        disabled={mode === 'view' || disabled || isSessionExpired}
-                        readOnly={readOnly}
-                        required={isRequired}
-                        control={methods.control}
-                        rules={undefined}
-                        options={options}
-                        componentProps={componentProps as Record<string, unknown>}
-                        error={errorMessage}
-                      />
-                    );
+                    const node = renderField(fieldName);
+                    if (!node) return null;
+                    return <React.Fragment key={fieldName}>{node}</React.Fragment>;
                   })
                 )}
               </div>
@@ -1450,9 +1441,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
             </div>
 
-            <div
-              className={cn('flex items-center justify-between gap-4 border-t p-6', 'bg-muted/30')}
-            >
+            <div className={cn('flex items-center justify-between gap-4 border-t p-6', 'bg-muted/30')}>
               <button
                 type="button"
                 onClick={handlePrevious}
