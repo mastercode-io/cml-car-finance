@@ -30,22 +30,23 @@
 ui?: {
   layout?: {
     type?: "single-column" | "grid";
-    gutter?: 8 | 12 | 16 | 24;            // default 16
-    columns?: 1 | 2 | 3 | 4 | 6 | 12;     // default 12
-    breakpoints?: {                       // optional, defaults sensible
-      sm?: number; md?: number; lg?: number; xl?: number;
-    };
+    columns?: { base: number; sm?: number; md?: number; lg?: number; xl?: number }; // default { base: 4 }
+    gutter?: { base: number; sm?: number; md?: number; lg?: number; xl?: number };  // default { base: 16 }
+    rowGap?: { base: number; sm?: number; md?: number; lg?: number; xl?: number };  // default { base: 16 }
+    breakpoints?: { sm?: number; md?: number; lg?: number; xl?: number };            // optional overrides
     sections?: Array<{
       id: string;
       title?: string;
       description?: string;
       rows: Array<{
-        columns: Array<{
-          span?: number;                  // 1..columns (default 12)
-          fields: string[];               // field names in render order
-        }>
-      }>
-    }>
+        fields: Array<{
+          name: string;
+          colSpan?: { base: number; sm?: number; md?: number; lg?: number; xl?: number }; // default 1
+          order?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number };   // optional visual order
+          hide?: { base?: boolean; sm?: boolean; md?: boolean; lg?: boolean; xl?: boolean }; // optional visibility
+        }>;
+      }>;
+    }>;
   };
   widgets?: {
     [field: string]: {
@@ -60,9 +61,9 @@ ui?: {
       readOnly?: boolean;
       // NEW (optional hints; ignored by single‑column renderer):
       layout?: {
-        colSpan?: number;                 // overrides column span if present
-        align?: "start" | "center" | "end" | "stretch";
-        size?: "sm" | "md" | "lg";
+        colSpan?: { base: number; sm?: number; md?: number; lg?: number; xl?: number };
+        order?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number };
+        hide?: { base?: boolean; sm?: boolean; md?: boolean; lg?: boolean; xl?: boolean };
       };
     }
   }

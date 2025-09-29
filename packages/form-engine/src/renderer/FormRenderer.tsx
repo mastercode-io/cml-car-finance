@@ -7,6 +7,7 @@ import { FieldFactory } from '../components/fields/FieldFactory';
 import { FeaturesProvider, useFlag } from '../context/features';
 import type {
   JSONSchema,
+  LayoutBreakpoint,
   ResolvedReviewNavigationPolicy,
   UnifiedFormSchema,
   ValidationError,
@@ -22,6 +23,7 @@ import { formatValue as formatReviewValue } from '../utils/review-format';
 
 import { ErrorSummary } from './ErrorSummary';
 import { StepProgress } from './StepProgress';
+import { GridRenderer } from './layout/GridRenderer';
 import {
   flattenFieldErrors,
   getStepFieldNames,
@@ -30,6 +32,9 @@ import {
   scrollToFirstError,
 } from './utils';
 import { useResolvedValidation, useValidationStrategyEffects } from './useValidation';
+
+const INVALID_SUBMISSION_MESSAGE =
+  'Please review the highlighted fields: One or more fields require your attention.';
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -90,6 +95,7 @@ export interface FormRendererProps {
   onValidationError?: (errors: unknown) => void;
   mode?: 'create' | 'edit' | 'view';
   className?: string;
+  gridBreakpointOverride?: LayoutBreakpoint;
 }
 
 type StepValidationResult = {
@@ -106,6 +112,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   onValidationError,
   mode = 'create',
   className,
+  gridBreakpointOverride,
 }) => {
   const fallbackInitialDataRef = React.useRef<Record<string, unknown>>({});
   const resolvedInitialData = initialData ?? fallbackInitialDataRef.current;
@@ -674,6 +681,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       if (shouldRunStepValidation) {
         const isStepValid = await validateCurrentStep();
         if (!isStepValid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(currentStepId);
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
@@ -686,6 +694,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       if (shouldRunFullValidation) {
         const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
         if (!isFormValid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(getFirstInvalidStep());
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
@@ -695,6 +704,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
         values = methods.getValues();
         const { valid, failedStep } = await validateAllSteps(values);
         if (!valid) {
+          setSubmissionFeedback({ type: 'error', message: INVALID_SUBMISSION_MESSAGE });
           handleInvalidDuringSubmit(failedStep ?? getFirstInvalidStep());
           scrollToFirstError();
           onValidationError?.(methods.formState.errors);
@@ -1117,6 +1127,78 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   const widgetDefinitions = schema.ui?.widgets ?? {};
 
+  const renderField = React.useCallback(
+    (fieldName: string): React.ReactNode => {
+      if (!visibleFields.includes(fieldName)) {
+        return null;
+      }
+
+      const uiConfig = widgetDefinitions[fieldName];
+      if (!uiConfig) {
+        console.warn(`No widget configuration found for field: ${fieldName}`);
+        return null;
+      }
+
+      const {
+        component,
+        label,
+        placeholder,
+        helpText,
+        description,
+        className: widgetClassName,
+        options,
+        disabled,
+        readOnly,
+        ...componentProps
+      } = uiConfig;
+
+      const widget: WidgetType = component ?? 'Text';
+      const fieldError = methods.formState.errors?.[
+        fieldName as keyof typeof methods.formState.errors
+      ];
+      const errorMessage = (() => {
+        if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+          return (fieldError as { message?: string }).message ?? 'Invalid value';
+        }
+        if (typeof fieldError === 'string') return fieldError;
+        return undefined;
+      })();
+
+      const isRequired = Array.isArray(currentStepSchema.required)
+        ? currentStepSchema.required.includes(fieldName)
+        : false;
+
+      return (
+        <FieldFactory
+          name={fieldName}
+          label={label ?? fieldName}
+          widget={widget}
+          placeholder={placeholder}
+          description={description}
+          helpText={helpText}
+          className={widgetClassName as string | undefined}
+          disabled={mode === 'view' || disabled || isSessionExpired}
+          readOnly={readOnly}
+          required={isRequired}
+          control={methods.control}
+          rules={undefined}
+          options={options}
+          componentProps={componentProps as Record<string, unknown>}
+          error={errorMessage}
+        />
+      );
+    },
+    [
+      visibleFields,
+      widgetDefinitions,
+      methods.control,
+      methods.formState.errors,
+      mode,
+      isSessionExpired,
+      currentStepSchema,
+    ],
+  );
+
   const reviewSummaryValues = React.useMemo(() => {
     if (!isReviewStep) return null;
     return buildSubmissionSummary(watchedValues, {
@@ -1367,64 +1449,23 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
               ) : null}
 
               <div className="space-y-4">
-                {Object.entries(stepProperties).map(([fieldName]) => {
-                  if (!visibleFields.includes(fieldName)) return null;
+                {activeLayout === 'grid' ? (
+                  <GridRenderer
+                    schema={schema}
+                    stepProperties={stepProperties}
+                    visibleFields={visibleFields}
+                    renderField={renderField}
+                    testBreakpoint={gridBreakpointOverride}
+                  />
+                ) : (
+                  Object.keys(stepProperties).map((fieldName) => {
+                    if (!visibleFields.includes(fieldName)) return null;
+                    const node = renderField(fieldName);
+                    if (!node) return null;
 
-                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                  if (!uiConfig) {
-                    console.warn(`No widget configuration found for field: ${fieldName}`);
-                    return null;
-                  }
-
-                  const {
-                    component,
-                    label,
-                    placeholder,
-                    helpText,
-                    description,
-                    className: widgetClassName,
-                    options,
-                    disabled,
-                    readOnly,
-                    ...componentProps
-                  } = uiConfig;
-
-                  const widget: WidgetType = component ?? 'Text';
-                  const fieldError =
-                    methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
-                  const errorMessage = (() => {
-                    if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                      return (fieldError as { message?: string }).message ?? 'Invalid value';
-                    }
-                    if (typeof fieldError === 'string') return fieldError;
-                    return undefined;
-                  })();
-
-                  const isRequired = Array.isArray(currentStepSchema.required)
-                    ? currentStepSchema.required.includes(fieldName)
-                    : false;
-
-                  return (
-                    <FieldFactory
-                      key={fieldName}
-                      name={fieldName}
-                      label={label ?? fieldName}
-                      widget={widget}
-                      placeholder={placeholder}
-                      description={description}
-                      helpText={helpText}
-                      className={widgetClassName as string | undefined}
-                      disabled={mode === 'view' || disabled || isSessionExpired}
-                      readOnly={readOnly}
-                      required={isRequired}
-                      control={methods.control}
-                      rules={undefined}
-                      options={options}
-                      componentProps={componentProps as Record<string, unknown>}
-                      error={errorMessage}
-                    />
-                  );
-                })}
+                    return <React.Fragment key={fieldName}>{node}</React.Fragment>;
+                  })
+                )}
               </div>
 
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />

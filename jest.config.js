@@ -14,6 +14,7 @@ module.exports = {
     '\\./validation/worker-client$':
       '<rootDir>/packages/form-engine/tests/__mocks__/worker-client.ts',
   },
+  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
   transform: {
     '^.+\\.[tj]sx?$': [
       'ts-jest',
