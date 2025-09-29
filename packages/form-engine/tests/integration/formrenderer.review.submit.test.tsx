@@ -26,7 +26,7 @@ describe('FormRenderer review submission requirements', () => {
         schema: {
           type: 'object',
           properties: {
-            confirmAccuracy: { type: 'boolean' },
+            confirmAccuracy: { type: 'boolean', const: true },
           },
           required: ['confirmAccuracy'],
         },
@@ -70,10 +70,18 @@ describe('FormRenderer review submission requirements', () => {
 
     await waitFor(() => expect(onSubmit).not.toHaveBeenCalled());
 
+    const alerts = await screen.findAllByRole('alert');
+    const banner = alerts.find((element) =>
+      element.textContent?.includes(
+        'Please review the highlighted fields: One or more fields require your attention.',
+      ),
+    );
+    expect(banner).toBeTruthy();
+
     const fieldWrapper = confirmation.closest('[data-field-wrapper]');
     expect(fieldWrapper).not.toBeNull();
     const errorMessage = await within(fieldWrapper as HTMLElement).findByRole('alert');
-    expect(errorMessage.textContent).toMatch(/confirmaccuracy/i);
+    expect(errorMessage).toHaveTextContent(/must be equal to constant/i);
 
     fireEvent.click(confirmation);
     fireEvent.click(submitButton);
@@ -82,6 +90,13 @@ describe('FormRenderer review submission requirements', () => {
     expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({ confirmAccuracy: true });
     await waitFor(() =>
       expect(within(fieldWrapper as HTMLElement).queryByRole('alert')).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'Please review the highlighted fields: One or more fields require your attention.',
+        ),
+      ).toBeNull(),
     );
   });
 });

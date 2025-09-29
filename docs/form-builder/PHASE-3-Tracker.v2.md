@@ -35,7 +35,7 @@
 
 | ID | Title | Branch | Status | PR | Notes |
 |---|---|---|---|---|---|
-| P3-04A | Grid schema types & guardrails | codex-form-builder-layout-v1 | todo |  | Add TS types; clamp & soft warnings |
+| P3-04A | GridRenderer scaffold (flag-gated) | codex-form-builder-layout-v1 | in-progress |  | Feature flag plumbing, renderer switch |
 | P3-04B | GridRenderer shell (flag-gated) | codex-form-builder-layout-v1 | todo |  | Select via flag+schema |
 | P3-04C | Field placement & fallbacks | codex-form-builder-layout-v1 | todo |  | Place fields; append unplaced |
 | P3-04D | Responsive breakpoints | codex-form-builder-layout-v1 | todo |  | CSS vars; md→sm collapse |

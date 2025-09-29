@@ -1113,4 +1113,16 @@ describe('FormRenderer', () => {
     const form = container.querySelector('form');
     expect(form).toHaveAttribute('data-layout', 'single-column');
   });
+
+  it('renders the grid layout container when the flag and schema opt in', () => {
+    const schema = buildSchema();
+    schema.ui.layout = { type: 'grid' };
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=true';
+
+    const { container } = render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const form = container.querySelector('form');
+    expect(form).toHaveAttribute('data-layout', 'grid');
+    expect(screen.getByTestId('grid-renderer-placeholder')).toBeInTheDocument();
+  });
 });
