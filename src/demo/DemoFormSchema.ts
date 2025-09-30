@@ -356,8 +356,160 @@ export const demoFormSchema: UnifiedFormSchema = {
   ],
   ui: {
     layout: {
-      type: 'single-column',
-      gutter: 24,
+      type: 'grid',
+      columns: { base: 4, md: 8 },
+      gutter: { base: 16, md: 24 },
+      rowGap: { base: 20, md: 24 },
+      sections: [
+        {
+          id: 'personal-details',
+          title: 'Contact details',
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 4, md: 4 } },
+                { name: 'lastName', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'email', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'phone', colSpan: { base: 4, md: 4 } },
+                { name: 'postcode', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'dateOfBirth', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'employment-status',
+          title: 'Employment information',
+          rows: [
+            {
+              fields: [
+                { name: 'currentStatus', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'employer', colSpan: { base: 4, md: 4 } },
+                { name: 'position', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'salary', colSpan: { base: 4, md: 4 } },
+                { name: 'startDate', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'experience-highlights',
+          title: 'Experience and highlights',
+          rows: [
+            {
+              fields: [
+                { name: 'yearsExperience', colSpan: { base: 4, md: 4 } },
+                { name: 'keySkills', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'highlightProjects', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'education',
+          title: 'Education',
+          rows: [
+            {
+              fields: [
+                { name: 'highestDegree', colSpan: { base: 4, md: 4 } },
+                { name: 'institution', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'graduationYear', colSpan: { base: 4, md: 4 } },
+                { name: 'gpa', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'role-preferences',
+          title: 'Role preferences',
+          rows: [
+            {
+              fields: [
+                { name: 'jobType', colSpan: { base: 4, md: 4 } },
+                { name: 'remotePreference', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'salaryExpectation', colSpan: { base: 4, md: 4 } },
+                { name: 'availabilityDate', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'relocate', colSpan: { base: 4, md: 4 } },
+                { name: 'preferredLocation', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'references', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'legal',
+          title: 'Declarations',
+          rows: [
+            {
+              fields: [
+                { name: 'workAuthorization', colSpan: { base: 4, md: 4 } },
+                { name: 'requiresSponsorship', colSpan: { base: 4, md: 4 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'backgroundCheckConsent', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'review',
+          title: 'Review and submit',
+          rows: [
+            {
+              fields: [
+                { name: 'confirmAccuracy', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+            {
+              fields: [
+                { name: 'coverLetter', colSpan: { base: 4, md: 8 } },
+              ],
+            },
+          ],
+        },
+      ],
     },
     theme: {
       brandColor: '#1d4ed8',
