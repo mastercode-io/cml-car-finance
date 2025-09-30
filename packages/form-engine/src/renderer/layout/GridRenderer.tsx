@@ -91,6 +91,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
   );
 
   const configuredFields = new Set<string>();
+  const hiddenFields = new Set<string>();
   const sectionNodes: React.ReactNode[] = [];
 
   layout.sections.forEach((section) => {
@@ -106,7 +107,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
       }
 
       const fieldNodes = row.fields
-        .map((fieldConfig) => {
+        .map((fieldConfig, index) => {
           if (!fieldConfig || typeof fieldConfig.name !== 'string') {
             return null;
           }
@@ -123,6 +124,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 
           const hidden = resolveBreakpoint(mergedLayout.hide, activeBreakpoint);
           if (hidden === true) {
+            hiddenFields.add(fieldName);
             return null;
           }
 
@@ -135,17 +137,39 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 
           const item = computeItemStyles(mergedLayout, activeBreakpoint, gridStyles.columns);
 
-          return (
-            <div
-              key={fieldName}
-              data-grid-field={fieldName}
-              style={item.style}
-            >
-              {fieldNode}
-            </div>
-          );
+          const hasExplicitOrder = typeof item.order === 'number';
+          const orderValue = hasExplicitOrder ? (item.order as number) : index + 0.5;
+
+          return {
+            order: orderValue,
+            sourceIndex: index,
+            node: (
+              <div
+                key={fieldName}
+                data-grid-field={fieldName}
+                style={item.style}
+              >
+                {fieldNode}
+              </div>
+            ),
+          };
         })
-        .filter((node): node is React.ReactElement => node !== null);
+        .filter(
+          (
+            entry,
+          ): entry is {
+            order: number;
+            sourceIndex: number;
+            node: React.ReactElement;
+          } => entry !== null,
+        )
+        .sort((a, b) => {
+          if (a.order !== b.order) {
+            return a.order - b.order;
+          }
+          return a.sourceIndex - b.sourceIndex;
+        })
+        .map((entry) => entry.node);
 
       if (fieldNodes.length === 0) {
         return;
@@ -172,7 +196,9 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
     }
   });
 
-  const fallbackFields = visibleFields.filter((field) => !configuredFields.has(field));
+  const fallbackFields = visibleFields.filter(
+    (field) => !configuredFields.has(field) && !hiddenFields.has(field),
+  );
 
   if (fallbackFields.length > 0) {
     const fallbackItem = computeItemStyles(
