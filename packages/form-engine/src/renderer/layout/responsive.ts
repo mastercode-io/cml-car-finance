@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 
 import type {
+  GridItemAlignment,
+  GridItemSize,
   GridLayoutFieldPlacement,
   LayoutBreakpoint,
   LayoutConfig,
@@ -21,10 +23,22 @@ export const DEFAULT_GRID_COLUMNS = 4;
 export const DEFAULT_GRID_GUTTER = 16;
 export const DEFAULT_GRID_ROW_GAP = 16;
 
+const SIZE_CLASS_MAP: Record<GridItemSize, string> = {
+  xs: 'max-w-xs',
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+  full: 'max-w-full',
+};
+
 export type FieldLayoutHints = {
   colSpan?: ResponsiveLayoutValue<number>;
   order?: ResponsiveLayoutValue<number>;
   hide?: ResponsiveLayoutValue<boolean>;
+  align?: ResponsiveLayoutValue<GridItemAlignment>;
+  size?: ResponsiveLayoutValue<GridItemSize>;
 };
 
 const isResponsiveObject = <T>(value: unknown): value is ResponsiveLayoutValue<T> => {
@@ -50,23 +64,23 @@ export const normalizeResponsiveValue = <T>(
 };
 
 export const mergeResponsiveValues = <T>(
-  base?: ResponsiveLayoutValue<T>,
-  override?: ResponsiveLayoutValue<T>,
+  primary?: ResponsiveLayoutValue<T>,
+  fallback?: ResponsiveLayoutValue<T>,
 ): ResponsiveLayoutValue<T> | undefined => {
   const result: ResponsiveLayoutValue<T> = {};
   let hasValue = false;
 
   for (const breakpoint of BREAKPOINT_SEQUENCE) {
-    const overrideValue = override?.[breakpoint];
-    if (overrideValue !== undefined) {
-      result[breakpoint] = overrideValue;
+    const primaryValue = primary?.[breakpoint];
+    if (primaryValue !== undefined) {
+      result[breakpoint] = primaryValue;
       hasValue = true;
       continue;
     }
 
-    const baseValue = base?.[breakpoint];
-    if (baseValue !== undefined) {
-      result[breakpoint] = baseValue;
+    const fallbackValue = fallback?.[breakpoint];
+    if (fallbackValue !== undefined) {
+      result[breakpoint] = fallbackValue;
       hasValue = true;
     }
   }
@@ -85,6 +99,8 @@ const extractLayoutHints = (
     colSpan: normalizeResponsiveValue<number>(input.colSpan),
     order: normalizeResponsiveValue<number>(input.order),
     hide: normalizeResponsiveValue<boolean>(input.hide),
+    align: normalizeResponsiveValue<GridItemAlignment>(input.align as GridItemAlignment | ResponsiveLayoutValue<GridItemAlignment> | undefined),
+    size: normalizeResponsiveValue<GridItemSize>(input.size as GridItemSize | ResponsiveLayoutValue<GridItemSize> | undefined),
   };
 };
 
@@ -99,6 +115,8 @@ export const mergeLayout = (
     colSpan: mergeResponsiveValues(baseHints.colSpan, overrideHints.colSpan),
     order: mergeResponsiveValues(baseHints.order, overrideHints.order),
     hide: mergeResponsiveValues(baseHints.hide, overrideHints.hide),
+    align: mergeResponsiveValues(baseHints.align, overrideHints.align),
+    size: mergeResponsiveValues(baseHints.size, overrideHints.size),
   };
 };
 
@@ -199,15 +217,26 @@ export interface ItemStyleResult {
   span: number;
   order?: number;
   style: CSSProperties;
+  className?: string;
+  alignment?: GridItemAlignment;
+  size?: GridItemSize;
 }
 
 export const computeItemStyles = (
   layout: FieldLayoutHints,
   breakpoint: LayoutBreakpoint,
   totalColumns: number,
+  options?: { defaultSpan?: number },
 ): ItemStyleResult => {
-  const resolvedSpan = resolveBreakpoint(layout.colSpan, breakpoint) ?? layout.colSpan?.base ?? 1;
+  const resolvedSpan =
+    resolveBreakpoint(layout.colSpan, breakpoint) ??
+    layout.colSpan?.base ??
+    options?.defaultSpan ??
+    1;
   const resolvedOrder = resolveBreakpoint(layout.order, breakpoint) ?? layout.order?.base;
+  const resolvedAlignment =
+    resolveBreakpoint(layout.align, breakpoint) ?? layout.align?.base;
+  const resolvedSize = resolveBreakpoint(layout.size, breakpoint) ?? layout.size?.base;
   const span = Math.min(Math.max(1, Math.round(resolvedSpan ?? 1)), Math.max(1, totalColumns));
 
   const style: CSSProperties = {
@@ -218,12 +247,27 @@ export const computeItemStyles = (
     style.order = resolvedOrder;
   }
 
+  const alignment =
+    resolvedAlignment && resolvedAlignment !== 'stretch'
+      ? (resolvedAlignment as GridItemAlignment)
+      : undefined;
+
+  if (alignment) {
+    style.alignSelf = alignment;
+  }
+
+  const size = resolvedSize as GridItemSize | undefined;
+  const className = size ? SIZE_CLASS_MAP[size] : undefined;
+
   return {
     span,
     order: typeof resolvedOrder === 'number' && Number.isFinite(resolvedOrder)
       ? resolvedOrder
       : undefined,
     style,
+    className,
+    alignment,
+    size,
   };
 };
 

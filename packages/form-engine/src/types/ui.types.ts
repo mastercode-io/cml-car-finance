@@ -21,6 +21,8 @@ export interface GridLayoutFieldPlacement {
   colSpan?: ResponsiveLayoutValue<number> | number;
   order?: ResponsiveLayoutValue<number>;
   hide?: ResponsiveLayoutValue<boolean> | boolean;
+  align?: ResponsiveLayoutValue<GridItemAlignment> | GridItemAlignment;
+  size?: ResponsiveLayoutValue<GridItemSize> | GridItemSize;
 }
 
 export interface GridLayoutRow {
@@ -99,7 +101,20 @@ export interface WidgetLayoutConfig {
   colSpan?: ResponsiveLayoutValue<number> | number;
   order?: ResponsiveLayoutValue<number>;
   hide?: ResponsiveLayoutValue<boolean> | boolean;
+  align?: ResponsiveLayoutValue<GridItemAlignment> | GridItemAlignment;
+  size?: ResponsiveLayoutValue<GridItemSize> | GridItemSize;
 }
+
+export type GridItemAlignment = 'start' | 'center' | 'end' | 'stretch';
+
+export type GridItemSize =
+  | 'xs'
+  | 'sm'
+  | 'md'
+  | 'lg'
+  | 'xl'
+  | '2xl'
+  | 'full';
 
 export interface RepeaterItemConfig {
   name: string;

@@ -206,6 +206,9 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
                 key={fieldName}
                 data-grid-field={fieldName}
                 style={item.style}
+                className={item.className}
+                data-grid-field-align={item.alignment ?? undefined}
+                data-grid-field-size={item.size ?? undefined}
               >
                 {fieldNode}
               </div>
@@ -314,28 +317,71 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
   );
 
   if (fallbackFields.length > 0) {
-    const fallbackItem = computeItemStyles(
-      { colSpan: { base: gridStyles.columns } },
-      activeBreakpoint,
-      gridStyles.columns,
-    );
+    const fallbackNodes = fallbackFields
+      .map((fieldName, index) => {
+        const widgetLayout = widgetDefinitions[fieldName]?.layout;
+        const mergedLayout = mergeLayout(undefined, widgetLayout);
+        const hidden = resolveBreakpoint(mergedLayout.hide, activeBreakpoint);
+        if (hidden === true) {
+          return null;
+        }
 
-    sectionNodes.push(
-      <div key="__fallback" className="grid" data-grid-row="fallback" style={gridStyles.style}>
-        {fallbackFields.map((fieldName) => {
-          const node = renderField(fieldName);
-          if (!node) {
-            return null;
-          }
+        const node = renderField(fieldName);
+        if (!node) {
+          return null;
+        }
 
-          return (
-            <div key={fieldName} data-grid-field={fieldName} style={fallbackItem.style}>
+        const item = computeItemStyles(
+          mergedLayout,
+          activeBreakpoint,
+          gridStyles.columns,
+          { defaultSpan: gridStyles.columns },
+        );
+
+        const hasExplicitOrder = typeof item.order === 'number';
+        const orderValue = hasExplicitOrder ? (item.order as number) : index + 0.5;
+
+        return {
+          order: orderValue,
+          sourceIndex: index,
+          node: (
+            <div
+              key={fieldName}
+              data-grid-field={fieldName}
+              style={item.style}
+              className={item.className}
+              data-grid-field-align={item.alignment ?? undefined}
+              data-grid-field-size={item.size ?? undefined}
+            >
               {node}
             </div>
-          );
-        })}
-      </div>,
-    );
+          ),
+        };
+      })
+      .filter(
+        (
+          entry,
+        ): entry is {
+          order: number;
+          sourceIndex: number;
+          node: React.ReactElement;
+        } => entry !== null,
+      )
+      .sort((a, b) => {
+        if (a.order !== b.order) {
+          return a.order - b.order;
+        }
+        return a.sourceIndex - b.sourceIndex;
+      })
+      .map((entry) => entry.node);
+
+    if (fallbackNodes.length > 0) {
+      sectionNodes.push(
+        <div key="__fallback" className="grid" data-grid-row="fallback" style={gridStyles.style}>
+          {fallbackNodes}
+        </div>,
+      );
+    }
   }
 
   if (sectionNodes.length === 0) {
