@@ -194,7 +194,14 @@ describe('GridRenderer', () => {
     expect(section).not.toBeNull();
     expect(section.getAttribute('role')).toBe('region');
     expect(section.getAttribute('aria-label')).toBe('Additional context');
-    expect(section.getAttribute('aria-describedby')).toBeNull();
+
+    const description = section.querySelector('[data-grid-section-description]') as
+      | HTMLElement
+      | null;
+    expect(description).not.toBeNull();
+    if (description) {
+      expect(section.getAttribute('aria-describedby')).toBe(description.id);
+    }
 
     const row = section.querySelector('[data-grid-row]');
     expect(row).not.toBeNull();
