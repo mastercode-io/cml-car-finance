@@ -13,7 +13,7 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
       <div
         class="grid"
         data-grid-row="true"
-        style="display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: var(--gutter); row-gap: var(--rowgap); --cols: 4; --gutter: 16px; --rowgap: 16px;"
+        style="display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: var(--gutter); row-gap: var(--rowgap); --cols: 4; --gutter: 16px; --rowgap: 16px; --cols-base: 4; --cols-sm: 4; --cols-md: 4; --cols-lg: 4; --cols-xl: 4;"
       >
         <div
           data-grid-field="email"

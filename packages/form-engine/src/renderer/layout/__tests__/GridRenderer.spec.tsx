@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 
 import type { JSONSchema, UnifiedFormSchema } from '../../../types';
 import { GridRenderer } from '../GridRenderer';
@@ -170,6 +170,74 @@ describe('GridRenderer', () => {
         fallbackRow.querySelectorAll('[data-grid-field]'),
       ).map((node) => node.getAttribute('data-grid-field'));
       expect(fallbackFields).not.toContain('hiddenField');
+    }
+  });
+
+  it('responds to viewport changes by updating breakpoints and column counts', async () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 1100,
+    });
+
+    try {
+      const schema = buildSchema({
+        type: 'grid',
+        columns: { md: 6, lg: 8 },
+        sections: [
+          {
+            id: 'primary',
+            rows: [
+              {
+                fields: [
+                  { name: 'firstName', colSpan: { md: 3 } },
+                  { name: 'lastName', colSpan: { md: 3 } },
+                  { name: 'email', colSpan: { md: 6 } },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      render(
+        <GridRenderer
+          schema={schema}
+          stepProperties={stepProperties}
+          visibleFields={['firstName', 'lastName', 'email']}
+          renderField={renderField}
+        />,
+      );
+
+      await waitFor(() => {
+        const container = document.querySelector('[data-grid-breakpoint="lg"]');
+        expect(container).not.toBeNull();
+      });
+
+      const wideRow = document.querySelector('[data-grid-row]') as HTMLElement;
+      expect(wideRow.style.getPropertyValue('--cols')).toBe('8');
+      expect(wideRow.style.getPropertyValue('--cols-lg')).toBe('8');
+
+      act(() => {
+        window.innerWidth = 500;
+        window.dispatchEvent(new Event('resize'));
+      });
+
+      await waitFor(() => {
+        const container = document.querySelector('[data-grid-breakpoint="base"]');
+        expect(container).not.toBeNull();
+      });
+
+      const narrowRow = document.querySelector('[data-grid-row]') as HTMLElement;
+      expect(narrowRow.style.getPropertyValue('--cols')).toBe('1');
+      expect(narrowRow.style.getPropertyValue('--cols-base')).toBe('1');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        writable: true,
+        value: originalInnerWidth,
+      });
     }
   });
 });
