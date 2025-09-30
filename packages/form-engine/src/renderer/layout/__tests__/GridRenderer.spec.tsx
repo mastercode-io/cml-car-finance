@@ -97,6 +97,107 @@ describe('GridRenderer', () => {
     expect(asFragment()).toMatchSnapshot();
   });
 
+  it('renders section titles and descriptions as accessible regions', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'contact-info',
+          title: 'Contact information',
+          description: 'How we will stay in touch',
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 2 } },
+                { name: 'lastName', colSpan: { base: 2 } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const section = container.querySelector(
+      '[data-grid-section="contact-info"]',
+    ) as HTMLElement;
+    expect(section).not.toBeNull();
+    expect(section.tagName.toLowerCase()).toBe('section');
+    expect(section.getAttribute('role')).toBe('region');
+
+    const heading = section.querySelector('[data-grid-section-title]');
+    expect(heading).not.toBeNull();
+    expect(heading?.textContent).toBe('Contact information');
+
+    const description = section.querySelector('[data-grid-section-description]');
+    expect(description).not.toBeNull();
+    expect(description?.textContent).toBe('How we will stay in touch');
+
+    const header = section.querySelector('[data-grid-section-header]');
+    const row = section.querySelector('[data-grid-row]');
+    expect(header).not.toBeNull();
+    expect(row).not.toBeNull();
+    expect(section.firstElementChild).toBe(header);
+    expect(header?.nextElementSibling).toBe(row);
+
+    if (heading instanceof HTMLElement) {
+      expect(section.getAttribute('aria-labelledby')).toBe(heading.id);
+    }
+
+    if (description instanceof HTMLElement) {
+      expect(section.getAttribute('aria-describedby')).toBe(description.id);
+    }
+  });
+
+  it('labels untitled sections using fallback aria-labels', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'supporting-details',
+          description: 'Additional context',
+          rows: [
+            {
+              fields: [{ name: 'notes', colSpan: { base: 4 } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['notes']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const section = container.querySelector(
+      '[data-grid-section="supporting-details"]',
+    ) as HTMLElement;
+    expect(section).not.toBeNull();
+    expect(section.getAttribute('role')).toBe('region');
+    expect(section.getAttribute('aria-label')).toBe('Additional context');
+    expect(section.getAttribute('aria-describedby')).toBeNull();
+
+    const row = section.querySelector('[data-grid-row]');
+    expect(row).not.toBeNull();
+  });
+
   it('appends unconfigured visible fields into a fallback row', () => {
     const schema = buildSchema({
       type: 'grid',

@@ -94,10 +94,36 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
   const hiddenFields = new Set<string>();
   const sectionNodes: React.ReactNode[] = [];
 
-  layout.sections.forEach((section) => {
+  layout.sections.forEach((section, sectionIndex) => {
     if (!section || !Array.isArray(section.rows)) {
       return;
     }
+
+    const rawSectionId =
+      typeof section.id === 'string' && section.id.trim().length > 0
+        ? section.id.trim()
+        : `section-${sectionIndex + 1}`;
+    const sectionSlug = rawSectionId
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const sectionIdBase = sectionSlug.length > 0 ? sectionSlug : rawSectionId;
+    const headingText =
+      typeof section.title === 'string' ? section.title.trim() : '';
+    const descriptionText =
+      typeof section.description === 'string'
+        ? section.description.trim()
+        : '';
+    const headingId =
+      headingText.length > 0
+        ? `grid-section-${sectionIdBase}-heading`
+        : undefined;
+    const descriptionId =
+      descriptionText.length > 0
+        ? `grid-section-${sectionIdBase}-description`
+        : undefined;
+    const fallbackAriaLabel =
+      descriptionText.length > 0 ? descriptionText : rawSectionId;
 
     const rowNodes: React.ReactNode[] = [];
 
@@ -188,10 +214,60 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
     });
 
     if (rowNodes.length > 0) {
+      const headerNodes: React.ReactNode[] = [];
+
+      if (headingText.length > 0 && headingId) {
+        headerNodes.push(
+          <h3 key="title" id={headingId} data-grid-section-title>
+            {headingText}
+          </h3>,
+        );
+      }
+
+      if (descriptionText.length > 0 && descriptionId) {
+        headerNodes.push(
+          <p
+            key="description"
+            id={descriptionId}
+            data-grid-section-description
+          >
+            {descriptionText}
+          </p>,
+        );
+      }
+
+      const header =
+        headerNodes.length > 0 ? (
+          <header key="header" className="space-y-1" data-grid-section-header>
+            {headerNodes}
+          </header>
+        ) : null;
+
+      const ariaAttributes: Record<string, string | undefined> = {};
+
+      if (headingId) {
+        ariaAttributes['aria-labelledby'] = headingId;
+        if (descriptionId) {
+          ariaAttributes['aria-describedby'] = descriptionId;
+        }
+      } else {
+        ariaAttributes['aria-label'] = fallbackAriaLabel;
+        if (descriptionId && fallbackAriaLabel !== descriptionText) {
+          ariaAttributes['aria-describedby'] = descriptionId;
+        }
+      }
+
       sectionNodes.push(
-        <div key={section.id} className="space-y-4" data-grid-section={section.id}>
+        <section
+          key={section.id}
+          className="space-y-4"
+          data-grid-section={section.id}
+          role="region"
+          {...ariaAttributes}
+        >
+          {header}
           {rowNodes}
-        </div>,
+        </section>,
       );
     }
   });
