@@ -125,10 +125,13 @@ export const resolveBreakpoint = <T>(
 const ensureResponsive = <T>(
   value: ResponsiveLayoutValue<T> | T | undefined,
   fallback: T,
+  options?: { baseFallback?: T },
 ): ResponsiveLayoutValue<T> => {
   const normalized = normalizeResponsiveValue<T>(value) ?? {};
+  const baseValue = normalized.base ?? options?.baseFallback ?? fallback;
+
   return {
-    base: normalized.base ?? fallback,
+    base: baseValue,
     sm: normalized.sm,
     md: normalized.md,
     lg: normalized.lg,
@@ -140,19 +143,33 @@ export interface GridStylesResult {
   columns: number;
   gutter: number;
   rowGap: number;
-  style: CSSProperties;
+  style: CSSProperties & Record<string, string>;
 }
 
 export const computeGridStyles = (
   layout: LayoutConfig | undefined,
   breakpoint: LayoutBreakpoint,
 ): GridStylesResult => {
-  const columnsConfig = ensureResponsive(layout?.columns, DEFAULT_GRID_COLUMNS);
+  const columnsConfig = ensureResponsive(layout?.columns, DEFAULT_GRID_COLUMNS, {
+    baseFallback: 1,
+  });
   const gutterConfig = ensureResponsive(layout?.gutter, DEFAULT_GRID_GUTTER);
   const rowGapConfig = ensureResponsive(layout?.rowGap, DEFAULT_GRID_ROW_GAP);
 
-  const rawColumns =
-    resolveBreakpoint(columnsConfig, breakpoint) ?? columnsConfig.base ?? DEFAULT_GRID_COLUMNS;
+  const breakpointColumns: Record<LayoutBreakpoint, number> = {
+    base: DEFAULT_GRID_COLUMNS,
+    sm: DEFAULT_GRID_COLUMNS,
+    md: DEFAULT_GRID_COLUMNS,
+    lg: DEFAULT_GRID_COLUMNS,
+    xl: DEFAULT_GRID_COLUMNS,
+  };
+
+  for (const key of BREAKPOINT_SEQUENCE) {
+    const resolved = resolveBreakpoint(columnsConfig, key) ?? columnsConfig.base ?? DEFAULT_GRID_COLUMNS;
+    breakpointColumns[key] = Math.max(1, Math.round(resolved));
+  }
+
+  const rawColumns = breakpointColumns[breakpoint];
   const rawGutter = resolveBreakpoint(gutterConfig, breakpoint) ?? gutterConfig.base ?? DEFAULT_GRID_GUTTER;
   const rawRowGap = resolveBreakpoint(rowGapConfig, breakpoint) ?? rowGapConfig.base ?? DEFAULT_GRID_ROW_GAP;
 
@@ -170,6 +187,10 @@ export const computeGridStyles = (
   style['--cols'] = String(columns);
   style['--gutter'] = `${gutter}px`;
   style['--rowgap'] = `${rowGap}px`;
+
+  for (const key of BREAKPOINT_SEQUENCE) {
+    style[`--cols-${key}`] = String(breakpointColumns[key]);
+  }
 
   return { columns, gutter, rowGap, style };
 };
