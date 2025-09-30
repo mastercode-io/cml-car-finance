@@ -40,7 +40,7 @@
 | P3-04C | Field placement & fallbacks | codex-form-builder-layout-v1 | done | pending | Grid renderer places fields per layout, appends fallback row, adds tests (PR link pending) |
 | P3-04D | Responsive breakpoints | codex-form-builder-layout-v1 | review | link | CSS vars for breakpoints + auto single-column collapse |
 | P3-04E | Sections (titles/landmarks) | codex-form-builder-phase-3-layout-engine | review | pending | Heading levels clamp + aria landmarks |
-| P3-04F | Per‑widget layout hints | codex-form-builder-layout-v1 | todo |  | colSpan/align/size precedence |
+| P3-04F | Per‑widget layout hints | codex-form-builder-phase-3-layout-engine | review | pending | Widget layout hints backfill colSpan/align/size defaults |
 | P3-04G | Error rendering stability | codex-form-builder-layout-v1 | todo |  | No grid jump on errors |
 | P3-04H | Demo schema: opt‑in layout | codex-form-builder-layout-v1 | todo |  | Minimal 2‑col example |
 | P3-04I | Docs & examples | codex-form-builder-layout-v1 | todo |  | FEATURES.md/README updates |

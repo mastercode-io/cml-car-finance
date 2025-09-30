@@ -350,6 +350,143 @@ describe('GridRenderer', () => {
     }
   });
 
+  it('uses widget layout hints when the section configuration omits placement details', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [{ name: 'firstName' }, { name: 'lastName' }],
+            },
+          ],
+        },
+      ],
+    });
+
+    schema.ui!.widgets.firstName = {
+      ...schema.ui!.widgets.firstName!,
+      layout: { colSpan: { base: 3 }, align: 'start', size: 'sm' },
+    };
+    schema.ui!.widgets.lastName = {
+      ...schema.ui!.widgets.lastName!,
+      layout: { colSpan: { base: 1 }, align: 'end', size: 'lg' },
+    };
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const first = container.querySelector('[data-grid-field="firstName"]') as HTMLElement;
+    const last = container.querySelector('[data-grid-field="lastName"]') as HTMLElement;
+
+    expect(first.style.gridColumn).toBe('span 3 / span 3');
+    expect(first.dataset.gridFieldAlign).toBe('start');
+    expect(first.classList.contains('max-w-sm')).toBe(true);
+
+    expect(last.style.gridColumn).toBe('span 1 / span 1');
+    expect(last.dataset.gridFieldAlign).toBe('end');
+    expect(last.classList.contains('max-w-lg')).toBe(true);
+  });
+
+  it('gives precedence to explicit layout settings over widget layout hints', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 2 }, align: 'stretch', size: 'xl' },
+                { name: 'lastName', colSpan: { base: 2 } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    schema.ui!.widgets.firstName = {
+      ...schema.ui!.widgets.firstName!,
+      layout: { colSpan: { base: 3 }, align: 'end', size: 'sm' },
+    };
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const first = container.querySelector('[data-grid-field="firstName"]') as HTMLElement;
+
+    expect(first.style.gridColumn).toBe('span 2 / span 2');
+    expect(first.dataset.gridFieldAlign).toBeUndefined();
+    expect(first.classList.contains('max-w-xl')).toBe(true);
+  });
+
+  it('applies widget layout hints to fallback fields', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [{ name: 'firstName', colSpan: { base: 2 } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    schema.ui!.widgets.notes = {
+      ...schema.ui!.widgets.notes!,
+      layout: {
+        colSpan: { base: 2 },
+        order: { base: -1 },
+        align: 'center',
+        size: 'md',
+      },
+    };
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'notes']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const fallbackRow = container.querySelector('[data-grid-row="fallback"]');
+    expect(fallbackRow).not.toBeNull();
+    const fallbackField = fallbackRow?.querySelector('[data-grid-field="notes"]') as HTMLElement;
+    expect(fallbackField).toBeDefined();
+    expect(fallbackField.style.gridColumn).toBe('span 2 / span 2');
+    expect(fallbackField.dataset.gridFieldAlign).toBe('center');
+    expect(fallbackField.classList.contains('max-w-md')).toBe(true);
+
+    const firstRow = container.querySelector('[data-grid-row]:not([data-grid-row="fallback"])');
+    const firstField = firstRow?.querySelector('[data-grid-field="firstName"]') as HTMLElement;
+    expect(firstField.style.gridColumn).toBe('span 2 / span 2');
+  });
+
   it('responds to viewport changes by updating breakpoints and column counts', async () => {
     const originalInnerWidth = window.innerWidth;
     Object.defineProperty(window, 'innerWidth', {
