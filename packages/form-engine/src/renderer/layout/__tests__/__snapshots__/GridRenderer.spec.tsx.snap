@@ -10,6 +10,7 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
       aria-label="primary"
       class="space-y-4"
       data-grid-section="primary"
+      data-grid-section-heading-level="h3"
       role="region"
     >
       <div

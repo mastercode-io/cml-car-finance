@@ -13,6 +13,25 @@ import {
   resolveBreakpoint,
 } from './responsive';
 
+const DEFAULT_SECTION_HEADING_LEVEL = 3;
+const MIN_SECTION_HEADING_LEVEL = 2;
+const MAX_SECTION_HEADING_LEVEL = 6;
+
+const clampHeadingLevel = (
+  value: number | undefined,
+  fallback: number,
+): number => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  const rounded = Math.round(value);
+  return Math.min(
+    MAX_SECTION_HEADING_LEVEL,
+    Math.max(MIN_SECTION_HEADING_LEVEL, rounded),
+  );
+};
+
 export interface GridRendererProps {
   schema: UnifiedFormSchema;
   stepProperties: Record<string, JSONSchema>;
@@ -30,6 +49,14 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 }) => {
   const layout = schema.ui?.layout;
   const widgetDefinitions = schema.ui?.widgets ?? {};
+  const defaultHeadingLevel = React.useMemo(
+    () =>
+      clampHeadingLevel(
+        layout?.sectionHeadingLevel,
+        DEFAULT_SECTION_HEADING_LEVEL,
+      ),
+    [layout?.sectionHeadingLevel],
+  );
   const breakpointOverrides = React.useMemo(
     () => layout?.breakpoints ?? {},
     [layout?.breakpoints],
@@ -114,6 +141,11 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
       typeof section.description === 'string'
         ? section.description.trim()
         : '';
+    const headingLevel = clampHeadingLevel(
+      section.headingLevel,
+      defaultHeadingLevel,
+    );
+    const HeadingTag = `h${headingLevel}` as keyof JSX.IntrinsicElements;
     const headingId =
       headingText.length > 0
         ? `grid-section-${sectionIdBase}-heading`
@@ -218,9 +250,13 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 
       if (headingText.length > 0 && headingId) {
         headerNodes.push(
-          <h3 key="title" id={headingId} data-grid-section-title>
+          <HeadingTag
+            key="title"
+            id={headingId}
+            data-grid-section-title
+          >
             {headingText}
-          </h3>,
+          </HeadingTag>,
         );
       }
 
@@ -262,6 +298,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
           key={section.id}
           className="space-y-4"
           data-grid-section={section.id}
+          data-grid-section-heading-level={`h${headingLevel}`}
           role="region"
           {...ariaAttributes}
         >
