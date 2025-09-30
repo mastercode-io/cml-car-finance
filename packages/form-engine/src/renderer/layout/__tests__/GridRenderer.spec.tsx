@@ -309,6 +309,80 @@ describe('GridRenderer', () => {
     expect(fallbackFields).toEqual(['notes']);
   });
 
+  it('reserves space for error messages and aligns rows to prevent layout jumps', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      rowGap: { base: 16 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 2 } },
+                { name: 'lastName', colSpan: { base: 2 } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const row = container.querySelector('[data-grid-row]') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.style.alignItems).toBe('start');
+
+    const firstField = row.querySelector('[data-grid-field="firstName"]') as HTMLElement;
+    const secondField = row.querySelector('[data-grid-field="lastName"]') as HTMLElement;
+
+    expect(firstField.style.getPropertyValue('--grid-field-error-slot')).toBe('24px');
+    expect(secondField.style.getPropertyValue('--grid-field-error-slot')).toBe('24px');
+
+    const fallbackSchema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      rowGap: { base: 32 },
+      sections: [
+        {
+          id: 'primary',
+          rows: [
+            {
+              fields: [{ name: 'firstName', colSpan: { base: 2 } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container: fallbackContainer } = render(
+      <GridRenderer
+        schema={fallbackSchema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const fallbackRow = fallbackContainer.querySelector('[data-grid-row="fallback"]') as HTMLElement;
+    expect(fallbackRow).not.toBeNull();
+    expect(fallbackRow.style.alignItems).toBe('start');
+
+    const fallbackField = fallbackRow.querySelector('[data-grid-field="lastName"]') as HTMLElement;
+    expect(fallbackField.style.getPropertyValue('--grid-field-error-slot')).toBe('32px');
+  });
+
   it('excludes hidden fields from the rendered output and fallback rows', () => {
     const schema = buildSchema({
       type: 'grid',

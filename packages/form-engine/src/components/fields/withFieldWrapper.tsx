@@ -70,11 +70,16 @@ export function withFieldWrapper<P extends FieldProps>(
           </p>
         ) : null}
 
-        {errorMessage ? (
-          <p id={errorId} className="text-sm text-destructive" role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
+        <div
+          data-field-error-slot
+          style={{ minHeight: 'var(--grid-field-error-slot, 0px)' }}
+        >
+          {errorMessage ? (
+            <p id={errorId} className="text-sm text-destructive" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+        </div>
       </div>
     );
   };
