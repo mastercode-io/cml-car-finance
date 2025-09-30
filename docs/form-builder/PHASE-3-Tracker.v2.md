@@ -39,7 +39,7 @@
 | P3-04B | Grid responsive + schema contract | codex-form-builder-layout-v1 | done |  | Responsive columns, gutter/rowGap vars, schema overrides |
 | P3-04C | Field placement & fallbacks | codex-form-builder-layout-v1 | done | pending | Grid renderer places fields per layout, appends fallback row, adds tests (PR link pending) |
 | P3-04D | Responsive breakpoints | codex-form-builder-layout-v1 | review | link | CSS vars for breakpoints + auto single-column collapse |
-| P3-04E | Sections (titles/landmarks) | codex-form-builder-phase-3-layout-engine | review |  | Section headings + aria landmarks |
+| P3-04E | Sections (titles/landmarks) | codex-form-builder-phase-3-layout-engine | review | pending | Heading levels clamp + aria landmarks |
 | P3-04F | Per‑widget layout hints | codex-form-builder-layout-v1 | todo |  | colSpan/align/size precedence |
 | P3-04G | Error rendering stability | codex-form-builder-layout-v1 | todo |  | No grid jump on errors |
 | P3-04H | Demo schema: opt‑in layout | codex-form-builder-layout-v1 | todo |  | Minimal 2‑col example |

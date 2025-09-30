@@ -31,6 +31,7 @@ export interface GridLayoutSection {
   id: string;
   title?: string;
   description?: string;
+  headingLevel?: number;
   rows: GridLayoutRow[];
 }
 
@@ -40,6 +41,7 @@ export interface LayoutConfig {
   gutter?: number | ResponsiveLayoutValue<number>;
   rowGap?: number | ResponsiveLayoutValue<number>;
   breakpoints?: Partial<Record<Exclude<LayoutBreakpoint, 'base'>, number>>;
+  sectionHeadingLevel?: number;
   sections?: GridLayoutSection[];
   groups?: LayoutGroup[];
 }

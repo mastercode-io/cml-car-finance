@@ -138,6 +138,8 @@ describe('GridRenderer', () => {
     const heading = section.querySelector('[data-grid-section-title]');
     expect(heading).not.toBeNull();
     expect(heading?.textContent).toBe('Contact information');
+    expect(heading?.tagName.toLowerCase()).toBe('h3');
+    expect(section.getAttribute('data-grid-section-heading-level')).toBe('h3');
 
     const description = section.querySelector('[data-grid-section-description]');
     expect(description).not.toBeNull();
@@ -196,6 +198,80 @@ describe('GridRenderer', () => {
 
     const row = section.querySelector('[data-grid-row]');
     expect(row).not.toBeNull();
+  });
+
+  it('supports customizing heading levels per section', () => {
+    const schema = buildSchema({
+      type: 'grid',
+      columns: { base: 4 },
+      sectionHeadingLevel: 5,
+      sections: [
+        {
+          id: 'primary-info',
+          title: 'Primary',
+          headingLevel: 2,
+          rows: [
+            {
+              fields: [
+                { name: 'firstName', colSpan: { base: 2 } },
+                { name: 'lastName', colSpan: { base: 2 } },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'secondary-info',
+          title: 'Secondary',
+          headingLevel: 8,
+          rows: [
+            {
+              fields: [{ name: 'email', colSpan: { base: 4 } }],
+            },
+          ],
+        },
+        {
+          id: 'tertiary-info',
+          title: 'Tertiary',
+          rows: [
+            {
+              fields: [{ name: 'notes', colSpan: { base: 4 } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(
+      <GridRenderer
+        schema={schema}
+        stepProperties={stepProperties}
+        visibleFields={['firstName', 'lastName', 'email', 'notes']}
+        renderField={renderField}
+        testBreakpoint="base"
+      />,
+    );
+
+    const sections = container.querySelectorAll('[data-grid-section]');
+    expect(sections).toHaveLength(3);
+
+    const [primary, secondary, tertiary] = Array.from(sections);
+
+    const primaryHeading = primary.querySelector(
+      '[data-grid-section-title]',
+    ) as HTMLElement;
+    const secondaryHeading = secondary.querySelector(
+      '[data-grid-section-title]',
+    ) as HTMLElement;
+    const tertiaryHeading = tertiary.querySelector(
+      '[data-grid-section-title]',
+    ) as HTMLElement;
+
+    expect(primaryHeading.tagName).toBe('H2');
+    expect(primary.getAttribute('data-grid-section-heading-level')).toBe('h2');
+    expect(secondaryHeading.tagName).toBe('H6');
+    expect(secondary.getAttribute('data-grid-section-heading-level')).toBe('h6');
+    expect(tertiaryHeading.tagName).toBe('H5');
+    expect(tertiary.getAttribute('data-grid-section-heading-level')).toBe('h5');
   });
 
   it('appends unconfigured visible fields into a fallback row', () => {
