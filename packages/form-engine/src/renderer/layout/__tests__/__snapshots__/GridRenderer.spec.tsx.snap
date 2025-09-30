@@ -6,9 +6,11 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
     class="space-y-8"
     data-grid-breakpoint="base"
   >
-    <div
+    <section
+      aria-label="primary"
       class="space-y-4"
       data-grid-section="primary"
+      role="region"
     >
       <div
         class="grid"
@@ -46,7 +48,7 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
           </div>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </DocumentFragment>
 `;
