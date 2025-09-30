@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { UnifiedFormSchema } from '@form-engine/types';
 import { FormRenderer } from '@form-engine/index';
@@ -103,5 +103,41 @@ describe('FormRenderer grid layout integration', () => {
     expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+  });
+
+  it('keeps field order stable when validation errors are displayed', async () => {
+    const schema = buildSchema(true);
+
+    render(
+      <FormRenderer
+        schema={schema}
+        onSubmit={jest.fn()}
+        gridBreakpointOverride="base"
+      />,
+    );
+
+    const initialOrder = Array.from(
+      document.querySelectorAll('[data-grid-field]'),
+    ).map((node) => node.getAttribute('data-grid-field'));
+
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
+    });
+
+    const postOrder = Array.from(
+      document.querySelectorAll('[data-grid-field]'),
+    ).map((node) => node.getAttribute('data-grid-field'));
+
+    expect(postOrder).toEqual(initialOrder);
+
+    const errorSlots = document.querySelectorAll('[data-field-error-slot]');
+    expect(errorSlots.length).toBeGreaterThan(0);
+
+    errorSlots.forEach((slot) => {
+      const element = slot as HTMLElement;
+      expect(element.style.minHeight).toBe('var(--grid-field-error-slot, 0px)');
+    });
   });
 });

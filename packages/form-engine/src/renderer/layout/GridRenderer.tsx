@@ -117,6 +117,19 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
     [layout, activeBreakpoint],
   );
 
+  const rowStyle = React.useMemo(
+    () => ({
+      ...gridStyles.style,
+      alignItems: 'start' as const,
+    }),
+    [gridStyles.style],
+  );
+
+  const errorSlotSize = React.useMemo(
+    () => Math.max(24, gridStyles.rowGap),
+    [gridStyles.rowGap],
+  );
+
   const configuredFields = new Set<string>();
   const hiddenFields = new Set<string>();
   const sectionNodes: React.ReactNode[] = [];
@@ -195,6 +208,11 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 
           const item = computeItemStyles(mergedLayout, activeBreakpoint, gridStyles.columns);
 
+          const fieldStyle = {
+            ...item.style,
+            '--grid-field-error-slot': `${errorSlotSize}px`,
+          } as React.CSSProperties & Record<string, string>;
+
           const hasExplicitOrder = typeof item.order === 'number';
           const orderValue = hasExplicitOrder ? (item.order as number) : index + 0.5;
 
@@ -205,7 +223,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
               <div
                 key={fieldName}
                 data-grid-field={fieldName}
-                style={item.style}
+                style={fieldStyle}
                 className={item.className}
                 data-grid-field-align={item.alignment ?? undefined}
                 data-grid-field-size={item.size ?? undefined}
@@ -241,7 +259,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
           key={`${section.id}-row-${rowIndex}`}
           className="grid"
           data-grid-row
-          style={gridStyles.style}
+          style={rowStyle}
         >
           {fieldNodes}
         </div>,
@@ -338,6 +356,11 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
           { defaultSpan: gridStyles.columns },
         );
 
+        const fieldStyle = {
+          ...item.style,
+          '--grid-field-error-slot': `${errorSlotSize}px`,
+        } as React.CSSProperties & Record<string, string>;
+
         const hasExplicitOrder = typeof item.order === 'number';
         const orderValue = hasExplicitOrder ? (item.order as number) : index + 0.5;
 
@@ -348,7 +371,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
             <div
               key={fieldName}
               data-grid-field={fieldName}
-              style={item.style}
+              style={fieldStyle}
               className={item.className}
               data-grid-field-align={item.alignment ?? undefined}
               data-grid-field-size={item.size ?? undefined}
@@ -377,7 +400,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
 
     if (fallbackNodes.length > 0) {
       sectionNodes.push(
-        <div key="__fallback" className="grid" data-grid-row="fallback" style={gridStyles.style}>
+        <div key="__fallback" className="grid" data-grid-row="fallback" style={rowStyle}>
           {fallbackNodes}
         </div>,
       );

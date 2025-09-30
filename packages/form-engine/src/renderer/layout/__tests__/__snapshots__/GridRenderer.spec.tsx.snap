@@ -16,11 +16,11 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
       <div
         class="grid"
         data-grid-row="true"
-        style="display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: var(--gutter); row-gap: var(--rowgap); --cols: 4; --gutter: 16px; --rowgap: 16px; --cols-base: 4; --cols-sm: 4; --cols-md: 4; --cols-lg: 4; --cols-xl: 4;"
+        style="display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: var(--gutter); row-gap: var(--rowgap); --cols: 4; --gutter: 16px; --rowgap: 16px; --cols-base: 4; --cols-sm: 4; --cols-md: 4; --cols-lg: 4; --cols-xl: 4; align-items: start;"
       >
         <div
           data-grid-field="email"
-          style="grid-column: span 4 / span 4; order: 0;"
+          style="grid-column: span 4 / span 4; order: 0; --grid-field-error-slot: 24px;"
         >
           <div
             data-testid="field-email"
@@ -30,7 +30,7 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
         </div>
         <div
           data-grid-field="firstName"
-          style="grid-column: span 2 / span 2;"
+          style="grid-column: span 2 / span 2; --grid-field-error-slot: 24px;"
         >
           <div
             data-testid="field-firstName"
@@ -40,7 +40,7 @@ exports[`GridRenderer renders configured fields respecting spans and explicit or
         </div>
         <div
           data-grid-field="lastName"
-          style="grid-column: span 2 / span 2; order: 1;"
+          style="grid-column: span 2 / span 2; order: 1; --grid-field-error-slot: 24px;"
         >
           <div
             data-testid="field-lastName"
