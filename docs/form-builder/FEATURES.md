@@ -18,7 +18,8 @@ The form builder runtime is exposed through `@form-engine`, which publishes the 
 | Analytics & performance | Buffers analytics events with sampling/redaction, exposes hook helpers, and enforces performance budgets via web-vitals listeners.【F:packages/form-engine/src/analytics/FormAnalytics.ts†L48-L294】【F:packages/form-engine/src/hooks/useFormAnalytics.ts†L1-L191】【F:packages/form-engine/src/performance/PerformanceBudget.ts†L1-L153】 | `analytics/FormAnalytics.ts`, `hooks/useFormAnalytics.ts`, `performance/PerformanceBudget.ts` | `metadata.sensitivity`, optional analytics config | Sampling defaults to 100% dev / 1% prod with sensitive-field redaction. | Analytics tests cover sampling, redaction, marks.【F:packages/form-engine/tests/unit/analytics/FormAnalytics.test.ts†L53-L160】 |
 | Security & CSP | Generates per-request nonce, emits strict CSP, and provides a nonce context for widgets to consume when injecting inline resources.【F:middleware.ts†L1-L35】【F:lib/security/csp.ts†L1-L34】【F:app/layout.tsx†L22-L41】【F:components/security/nonce-context.tsx†L6-L18】 | `middleware.ts`, `lib/security/csp.ts`, `app/layout.tsx` | – | Nonce required for inline scripts/styles; dev loosens CSP for tooling. | – |
 | Computed fields & data sources | Evaluates computed expressions with dependency tracking + topological sort, integrates SWR-backed data source fetching with caching, retries, and transforms.【F:packages/form-engine/src/computed/ComputedFieldEngine.ts†L12-L297】【F:packages/form-engine/src/hooks/useComputedFields.ts†L16-L88】【F:packages/form-engine/src/datasources/DataSourceManager.ts†L1-L210】【F:packages/form-engine/src/hooks/useDataSource.ts†L7-L24】 | `computed/*`, `datasources/*`, `hooks/useDataSource.ts` | `computed[]`, `dataSources.*` | Computed values cached unless `cache:false`; data sources cache per key when enabled. | – |
-| Theming & layout metadata | Schema `ui.layout` and `ui.theme` describe grouping, gutters, density, and tone for future layout/theming control.【F:packages/form-engine/src/types/ui.types.ts†L1-L63】 | `types/ui.types.ts` | `ui.layout`, `ui.theme` | Not yet consumed by renderer (single-column form). | – |
+| Grid layout renderer (flagged) | Switches to the multi-column `GridRenderer` when the `gridLayout` flag and `ui.layout.type === "grid"` are both present, rendering sectioned rows, responsive spans, widget-level layout hints, and fallbacks for unplaced fields.【F:packages/form-engine/src/renderer/FormRenderer.tsx†L1104-L1108】【F:packages/form-engine/src/renderer/layout/GridRenderer.tsx†L100-L430】【F:packages/form-engine/src/renderer/layout/responsive.ts†L13-L292】【F:packages/form-engine/src/context/features.tsx†L13-L177】 | `renderer/FormRenderer.tsx`, `renderer/layout/GridRenderer.tsx`, `renderer/layout/responsive.ts`, `context/features.tsx` | `ui.layout.type`, `ui.layout.sections[].rows[].fields`, `ui.widgets[field].layout.*`, `features.gridLayout`, `NEXT_PUBLIC_FLAGS` | Default OFF; falls back to single-column containers and skips hidden fields when disabled or not configured.【F:packages/form-engine/src/renderer/layout/GridRenderer.tsx†L100-L205】【F:packages/form-engine/tests/integration/formrenderer.grid-layout.test.tsx†L92-L106】 | Grid renderer unit + integration tests cover spans, a11y sections, fallbacks, responsiveness, and error stability.【F:packages/form-engine/src/renderer/layout/__tests__/GridRenderer.spec.tsx†L41-L391】【F:packages/form-engine/tests/integration/formrenderer.grid-layout.test.tsx†L60-L142】 |
+| Theming & layout metadata | Schema `ui.layout` now defines sections, responsive columns, and gutter/row spacing while `ui.theme` reserves future styling hooks; widget `layout` blocks add per-field overrides consumed by the grid renderer.【F:packages/form-engine/src/types/ui.types.ts†L3-L106】【F:packages/form-engine/src/renderer/layout/responsive.ts†L36-L271】 | `types/ui.types.ts`, `renderer/layout/responsive.ts` | `ui.layout`, `ui.theme`, `ui.widgets[field].layout` | Layout metadata is optional; when omitted the renderer reverts to stacked fields.【F:packages/form-engine/src/renderer/layout/GridRenderer.tsx†L100-L423】 | Grid renderer tests assert fallback rows, heading levels, and hint precedence.【F:packages/form-engine/src/renderer/layout/__tests__/GridRenderer.spec.tsx†L60-L391】 |
 
 ## Deep Dives
 
@@ -182,6 +183,86 @@ Schema metadata defines layout groups (type, columns, gutter, breakpoints) and t
 }
 ```
 This example highlights overrides, step visibility rules, transitions, widget mapping, layout/theme metadata, validation strategy placeholders, computed fields, and data sources.【F:packages/form-engine/src/types/schema.types.ts†L7-L38】【F:packages/form-engine/src/rules/rule-evaluator.ts†L12-L120】【F:packages/form-engine/src/rules/transition-engine.ts†L12-L156】【F:packages/form-engine/src/types/ui.types.ts†L1-L63】【F:packages/form-engine/src/computed/ComputedFieldEngine.ts†L12-L120】【F:packages/form-engine/src/datasources/DataSourceManager.ts†L1-L130】
+
+### Enable the grid layout renderer
+The grid renderer stays behind the `gridLayout` feature flag—either set `features.gridLayout: true` on the schema or provide `NEXT_PUBLIC_FLAGS="gridLayout=1"` to override at runtime.【F:packages/form-engine/src/context/features.tsx†L13-L177】【F:packages/form-engine/tests/integration/formrenderer.grid-layout.test.tsx†L57-L106】 When the flag is on and `ui.layout.type` is `"grid"`, `FormRenderer` mounts `GridRenderer` instead of the single-column stack.【F:packages/form-engine/src/renderer/FormRenderer.tsx†L1104-L1108】 The schema shape for sections, rows, and widget layout hints lives under `ui.layout` and `ui.widgets[field].layout` in the shared UI types.【F:packages/form-engine/src/types/ui.types.ts†L3-L106】 Define responsive columns, gutters, sections, and per-field layout hints to arrange widgets:
+
+```json
+{
+  "$id": "loan.grid.v1",
+  "version": "1.0.0",
+  "features": { "gridLayout": true },
+  "steps": [
+    {
+      "id": "details",
+      "title": "Contact details",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "employer": { "type": "string" }
+        }
+      }
+    }
+  ],
+  "ui": {
+    "layout": {
+      "type": "grid",
+      "columns": { "base": 2, "lg": 4 },
+      "gutter": { "base": 16, "lg": 24 },
+      "rowGap": { "base": 24 },
+      "sections": [
+        {
+          "id": "contact",
+          "title": "Contact details",
+          "description": "How we can reach you",
+          "rows": [
+            {
+              "fields": [
+                { "name": "firstName", "colSpan": { "base": 2, "lg": 1 } },
+                { "name": "lastName", "colSpan": { "base": 2, "lg": 1 } }
+              ]
+            },
+            {
+              "fields": [
+                { "name": "email", "colSpan": { "base": 2, "lg": 2 } },
+                { "name": "phone", "colSpan": { "base": 2, "lg": 2 }, "hide": { "base": true, "lg": false } }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "employment",
+          "headingLevel": 2,
+          "rows": [
+            {
+              "fields": [
+                { "name": "employer", "colSpan": { "base": 2, "lg": 4 }, "align": { "lg": "start" } }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "widgets": {
+      "email": {
+        "component": "Email",
+        "label": "Email",
+        "layout": { "order": { "lg": 0 } }
+      },
+      "phone": {
+        "component": "Phone",
+        "label": "Phone number"
+      }
+    }
+  }
+}
+```
+
+Sections become `<section>` landmarks whose headings and descriptions are wired to `aria-labelledby` / `aria-describedby`, and the renderer sorts fields within each row using responsive spans, widget overrides, and explicit order values.【F:packages/form-engine/src/renderer/layout/GridRenderer.tsx†L137-L330】【F:packages/form-engine/src/renderer/layout/responsive.ts†L36-L271】 Fields omitted from the layout (or hidden at the active breakpoint) are skipped or appended to a fallback row so nothing disappears from the step.【F:packages/form-engine/src/renderer/layout/GridRenderer.tsx†L186-L405】【F:packages/form-engine/src/renderer/layout/__tests__/GridRenderer.spec.tsx†L284-L317】
 
 ### Render a form with autosave and analytics
 ```tsx

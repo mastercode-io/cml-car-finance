@@ -43,7 +43,7 @@
 | P3-04F | Per‑widget layout hints | codex-form-builder-phase-3-layout-engine | review | pending | Widget layout hints backfill colSpan/align/size defaults |
 | P3-04G | Error rendering stability | codex-form-builder-phase-3-layout-engine | review | pending | No grid jump on errors |
 | P3-04H | Demo schema: opt‑in layout | codex-form-builder-phase-3-layout-engine | review | pending | Minimal 2‑col layout configured in demo schema; flag off by default |
-| P3-04I | Docs & examples | codex-form-builder-layout-v1 | todo |  | FEATURES.md/README updates |
+| P3-04I | Docs & examples | codex-form-builder-phase-3-layout-engine | review | pending | FEATURES.md/README updates |
 
 ---
 
