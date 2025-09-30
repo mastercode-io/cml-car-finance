@@ -309,7 +309,7 @@ export const GridRenderer: React.FC<GridRendererProps> = ({
         }
       } else {
         ariaAttributes['aria-label'] = fallbackAriaLabel;
-        if (descriptionId && fallbackAriaLabel !== descriptionText) {
+        if (descriptionId) {
           ariaAttributes['aria-describedby'] = descriptionId;
         }
       }
