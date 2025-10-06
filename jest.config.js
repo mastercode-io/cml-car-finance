@@ -30,6 +30,7 @@ module.exports = {
       },
     ],
   },
+  testPathIgnorePatterns: ['\\.d\\.ts$'],
   collectCoverageFrom: [
     'packages/form-engine/src/**/*.{ts,tsx}',
     '!**/*.d.ts',

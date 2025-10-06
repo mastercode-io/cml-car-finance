@@ -11,6 +11,7 @@ import type {
   UnifiedFormSchema,
   ValidationError,
   WidgetType,
+  LayoutBreakpoint,
 } from '../types';
 import { TransitionEngine } from '../rules/transition-engine';
 import { VisibilityController } from '../rules/visibility-controller';
@@ -22,6 +23,7 @@ import { formatValue as formatReviewValue } from '../utils/review-format';
 
 import { ErrorSummary } from './ErrorSummary';
 import { StepProgress } from './StepProgress';
+import { GridRenderer } from './layout/GridRenderer';
 import {
   flattenFieldErrors,
   getStepFieldNames,
@@ -42,6 +44,9 @@ const formatDuration = (ms: number): string => {
   }
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
+
+const INVALID_SUBMISSION_MESSAGE =
+  'Please review the highlighted fields: One or more fields require your attention.';
 
 type SubmissionSummaryOptions = {
   schema: UnifiedFormSchema;
@@ -90,6 +95,7 @@ export interface FormRendererProps {
   onValidationError?: (errors: unknown) => void;
   mode?: 'create' | 'edit' | 'view';
   className?: string;
+  gridBreakpointOverride?: LayoutBreakpoint;
 }
 
 type StepValidationResult = {
@@ -106,6 +112,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
   onValidationError,
   mode = 'create',
   className,
+  gridBreakpointOverride,
 }) => {
   const fallbackInitialDataRef = React.useRef<Record<string, unknown>>({});
   const resolvedInitialData = initialData ?? fallbackInitialDataRef.current;
@@ -368,6 +375,11 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
 
   const handleInvalidDuringSubmit = React.useCallback(
     (targetStep?: string) => {
+      setSubmissionFeedback({
+        type: 'error',
+        message: INVALID_SUBMISSION_MESSAGE,
+      });
+
       if (!shouldJumpOnSubmit || !targetStep) {
         return;
       }
@@ -386,6 +398,7 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
       setCurrentStepIndex(targetIndex);
     },
     [
+      setSubmissionFeedback,
       shouldJumpOnSubmit,
       visibleSteps,
       isReviewStep,
@@ -1111,11 +1124,83 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
     ? Object.keys(stepProperties)
     : visibilityControllerRef.current.getVisibleFields(schema, currentStepId, watchedValues);
 
+  const requiredFieldSet = React.useMemo(() => {
+    const requiredList = Array.isArray(currentStepSchema.required)
+      ? currentStepSchema.required
+      : [];
+    return new Set(requiredList);
+  }, [currentStepSchema]);
+
   const stepStatusList = visibleSteps.map((stepId) =>
     getStepStatus(stepId, currentStepId, completedSteps, errorStepSet),
   );
 
   const widgetDefinitions = schema.ui?.widgets ?? {};
+
+  const renderField = (fieldName: string) => {
+    if (!visibleFields.includes(fieldName)) return null;
+
+    const uiConfig = widgetDefinitions[fieldName];
+    if (!uiConfig) {
+      console.warn(`No widget configuration found for field: ${fieldName}`);
+      return null;
+    }
+
+    const {
+      component,
+      label,
+      placeholder,
+      helpText,
+      description,
+      className: widgetClassName,
+      options,
+      disabled,
+      readOnly,
+      layout: _layoutHints,
+      ...componentProps
+    } = uiConfig;
+
+    const widget: WidgetType = component ?? 'Text';
+    const fieldError =
+      methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
+    const errorMessage = (() => {
+      if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+        return (fieldError as { message?: string }).message ?? 'Invalid value';
+      }
+      if (typeof fieldError === 'string') return fieldError;
+      return undefined;
+    })();
+
+    const isRequired = requiredFieldSet.has(fieldName);
+    const requireTrueRule =
+      widget === 'Checkbox' && isRequired
+        ? {
+            validate: (value: unknown) =>
+              value === true || `${fieldName} is required`,
+          }
+        : undefined;
+
+    return (
+      <FieldFactory
+        key={fieldName}
+        name={fieldName}
+        label={label ?? fieldName}
+        widget={widget}
+        placeholder={placeholder}
+        description={description}
+        helpText={helpText}
+        className={widgetClassName as string | undefined}
+        disabled={mode === 'view' || disabled || isSessionExpired}
+        readOnly={readOnly}
+        required={isRequired}
+        control={methods.control}
+        rules={requireTrueRule}
+        options={options}
+        componentProps={componentProps as Record<string, unknown>}
+        error={errorMessage}
+      />
+    );
+  };
 
   const reviewSummaryValues = React.useMemo(() => {
     if (!isReviewStep) return null;
@@ -1366,66 +1451,22 @@ const FormRendererInner: React.FC<FormRendererProps> = ({
                 </div>
               ) : null}
 
-              <div className="space-y-4">
-                {Object.entries(stepProperties).map(([fieldName]) => {
-                  if (!visibleFields.includes(fieldName)) return null;
-
-                  const uiConfig = (schema.ui?.widgets ?? {})[fieldName];
-                  if (!uiConfig) {
-                    console.warn(`No widget configuration found for field: ${fieldName}`);
-                    return null;
-                  }
-
-                  const {
-                    component,
-                    label,
-                    placeholder,
-                    helpText,
-                    description,
-                    className: widgetClassName,
-                    options,
-                    disabled,
-                    readOnly,
-                    ...componentProps
-                  } = uiConfig;
-
-                  const widget: WidgetType = component ?? 'Text';
-                  const fieldError =
-                    methods.formState.errors?.[fieldName as keyof typeof methods.formState.errors];
-                  const errorMessage = (() => {
-                    if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
-                      return (fieldError as { message?: string }).message ?? 'Invalid value';
-                    }
-                    if (typeof fieldError === 'string') return fieldError;
-                    return undefined;
-                  })();
-
-                  const isRequired = Array.isArray(currentStepSchema.required)
-                    ? currentStepSchema.required.includes(fieldName)
-                    : false;
-
-                  return (
-                    <FieldFactory
-                      key={fieldName}
-                      name={fieldName}
-                      label={label ?? fieldName}
-                      widget={widget}
-                      placeholder={placeholder}
-                      description={description}
-                      helpText={helpText}
-                      className={widgetClassName as string | undefined}
-                      disabled={mode === 'view' || disabled || isSessionExpired}
-                      readOnly={readOnly}
-                      required={isRequired}
-                      control={methods.control}
-                      rules={undefined}
-                      options={options}
-                      componentProps={componentProps as Record<string, unknown>}
-                      error={errorMessage}
-                    />
-                  );
-                })}
-              </div>
+              {activeLayout === 'grid' ? (
+                <GridRenderer
+                  layout={schema.ui?.layout ?? {}}
+                  visibleFields={visibleFields}
+                  renderField={renderField}
+                  widgetDefinitions={widgetDefinitions}
+                  breakpointOverride={gridBreakpointOverride}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {Object.keys(stepProperties).map((fieldName) => {
+                    const node = renderField(fieldName);
+                    return node ? <React.Fragment key={fieldName}>{node}</React.Fragment> : null;
+                  })}
+                </div>
+              )}
 
               <ErrorSummary errors={methods.formState.errors} onFocusField={focusField} />
             </div>
