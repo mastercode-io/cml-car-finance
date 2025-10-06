@@ -63,17 +63,18 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = (props) => {
   );
 
   const handleChange = React.useCallback(
-    (nextValue: boolean) => {
-      onChange?.(nextValue);
-      onValueChange?.(nextValue);
-      onCheckedChange?.(nextValue);
+    (nextValue: boolean | undefined) => {
+      const resolved = nextValue === undefined ? false : nextValue;
+      onChange?.(resolved);
+      onValueChange?.(resolved);
+      onCheckedChange?.(resolved);
     },
     [onChange, onCheckedChange, onValueChange],
   );
 
   const hasExternalValue = value !== undefined;
   const [internalValue, setInternalValue] = React.useState<boolean>(() =>
-    hasExternalValue ? Boolean(value) : Boolean(defaultValue),
+    hasExternalValue ? value === true : Boolean(defaultValue),
   );
 
   React.useEffect(() => {
@@ -90,9 +91,9 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = (props) => {
         name={name}
         control={control}
         rules={rules}
-        defaultValue={Boolean(defaultValue)}
+        defaultValue={ariaRequired ? undefined : Boolean(defaultValue)}
         render={({ field }) => {
-          const checked = Boolean(field.value);
+          const checked = field.value === true;
 
           return (
             <>
@@ -113,8 +114,9 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = (props) => {
                   }
 
                   const nextValue = nextState === true;
-                  field.onChange(nextValue);
-                  handleChange(nextValue);
+                  const valueToStore = nextValue ? true : ariaRequired ? undefined : false;
+                  field.onChange(valueToStore);
+                  handleChange(valueToStore);
                 }}
                 onBlur={(event: React.FocusEvent<HTMLButtonElement>) => {
                   componentOnBlur?.(event);
@@ -135,7 +137,7 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = (props) => {
     );
   }
 
-  const resolvedChecked = hasExternalValue ? Boolean(value) : internalValue;
+  const resolvedChecked = hasExternalValue ? value === true : internalValue;
   const defaultCheckedValue = componentDefaultChecked ?? Boolean(defaultValue);
 
   return (
@@ -158,12 +160,13 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = (props) => {
           }
 
           const nextValue = nextState === true;
+          const valueToStore = nextValue ? true : ariaRequired ? undefined : false;
 
           if (!hasExternalValue) {
-            setInternalValue(nextValue);
+            setInternalValue(Boolean(valueToStore));
           }
 
-          handleChange(nextValue);
+          handleChange(valueToStore);
         }}
         onBlur={(event: React.FocusEvent<HTMLButtonElement>) => {
           componentOnBlur?.(event);

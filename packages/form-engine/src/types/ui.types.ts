@@ -1,4 +1,9 @@
 import type { Rule } from './rules.types';
+import type {
+  GridLayoutSection,
+  GridSpanDefinition,
+  LayoutBreakpoint,
+} from './layout.types';
 
 export interface UIDefinition {
   widgets: Record<string, WidgetConfig>;
@@ -10,7 +15,8 @@ export interface LayoutConfig {
   type?: 'single-column' | 'two-column' | 'grid';
   columns?: number;
   gutter?: number;
-  breakpoints?: Record<string, number>;
+  breakpoints?: Partial<Record<LayoutBreakpoint, number>>;
+  sections?: GridLayoutSection[];
   groups?: LayoutGroup[];
 }
 
@@ -20,6 +26,10 @@ export interface LayoutGroup {
   description?: string;
   fields: string[];
   visibleWhen?: Rule;
+}
+
+export interface WidgetLayoutConfig {
+  colSpan?: GridSpanDefinition;
 }
 
 export interface ThemeConfig {
@@ -60,6 +70,7 @@ export interface WidgetConfig {
   minItems?: number;
   maxItems?: number;
   defaultItemValue?: Record<string, unknown>;
+  layout?: WidgetLayoutConfig;
 }
 
 export interface RepeaterItemConfig {

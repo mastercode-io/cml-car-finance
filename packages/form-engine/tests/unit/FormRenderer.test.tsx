@@ -401,6 +401,35 @@ describe('FormRenderer', () => {
     });
   });
 
+  it('shows an invalid submission banner when submit validation fails', async () => {
+    const schema = buildSchema();
+
+    render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    fireEvent.change(await screen.findByRole('textbox', { name: /first name/i }), {
+      target: { value: 'Sam' },
+    });
+    fireEvent.change(await screen.findByRole('textbox', { name: /last name/i }), {
+      target: { value: 'Taylor' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Please review the highlighted fields: One or more fields require your attention.',
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   it('navigates to the next step when the current step is valid', async () => {
     const schema = buildSchema();
 
@@ -1101,6 +1130,61 @@ describe('FormRenderer', () => {
       expect(screen.getByText(/restored your saved progress/i)).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /email/i })).toHaveValue('saved@example.com');
     });
+  });
+
+  it('renders the grid layout when both schema and flag opt in', async () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=true';
+    const schema = buildSchema();
+
+    const personalStep = schema.steps.find((step) => step.id === 'personal');
+    if (personalStep && 'properties' in personalStep.schema) {
+      (personalStep.schema as any).properties.middleName = { type: 'string' };
+      personalStep.schema.required = ['firstName', 'lastName'];
+    }
+
+    schema.ui.widgets.middleName = { component: 'Text', label: 'Middle Name' };
+    schema.ui.layout = {
+      type: 'grid',
+      gutter: 12,
+      breakpoints: { base: 1, md: 2 },
+      sections: [
+        {
+          id: 'primary',
+          title: 'Primary Info',
+          rows: [{ fields: ['firstName', 'lastName'], colSpan: { md: 1 } }],
+        },
+      ],
+    };
+
+    const { container } = render(<FormRenderer schema={schema} onSubmit={jest.fn()} />);
+
+    const form = container.querySelector('form');
+    expect(form).toHaveAttribute('data-layout', 'grid');
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /first name/i })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /middle name/i })).toBeInTheDocument();
+    });
+
+    expect(
+      container.querySelector('[data-grid-section="primary"]'),
+    ).toBeInTheDocument();
+  });
+
+  it('honors gridBreakpointOverride when provided', () => {
+    process.env.NEXT_PUBLIC_FLAGS = 'gridLayout=true';
+    const schema = buildSchema();
+    schema.ui.layout = {
+      type: 'grid',
+      sections: [{ id: 'default', rows: [{ fields: ['firstName'] }] }],
+    };
+
+    const { container } = render(
+      <FormRenderer schema={schema} onSubmit={jest.fn()} gridBreakpointOverride="lg" />,
+    );
+
+    const gridContainer = container.querySelector('[data-grid-breakpoint]');
+    expect(gridContainer).toHaveAttribute('data-grid-breakpoint', 'lg');
   });
 
   it('falls back to the single-column layout when the grid flag is disabled', () => {
