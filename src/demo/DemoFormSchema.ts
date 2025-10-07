@@ -356,8 +356,200 @@ export const demoFormSchema: UnifiedFormSchema = {
   ],
   ui: {
     layout: {
-      type: 'single-column',
+      type: 'grid',
       gutter: 24,
+      columns: 6,
+      breakpoints: {
+        base: 1,
+        sm: 2,
+        md: 6,
+        lg: 12,
+        xl: 12,
+        '2xl': 12,
+      },
+      sections: [
+        {
+          id: 'personal-details',
+          title: 'Contact details',
+          description: 'How we can reach and verify you.',
+          rows: [
+            {
+              id: 'personal-names',
+              fields: ['firstName', 'lastName'],
+              colSpan: {
+                firstName: { base: 1, sm: 1, md: 3, lg: 6 },
+                lastName: { base: 1, sm: 1, md: 3, lg: 6 },
+              },
+            },
+            {
+              id: 'personal-contact',
+              fields: ['email', 'phone'],
+              colSpan: {
+                email: { base: 1, sm: 2, md: 4, lg: 8 },
+                phone: { base: 1, sm: 2, md: 2, lg: 4 },
+              },
+            },
+            {
+              id: 'personal-identity',
+              fields: ['postcode', 'dateOfBirth'],
+              colSpan: {
+                postcode: { base: 1, sm: 1, md: 3, lg: 6 },
+                dateOfBirth: { base: 1, sm: 1, md: 3, lg: 6 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'employment-status',
+          title: 'Employment details',
+          description: 'Tell us about your current role.',
+          rows: [
+            {
+              id: 'employment-current-status',
+              fields: ['currentStatus'],
+              colSpan: {
+                currentStatus: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+            {
+              id: 'employment-role',
+              fields: ['employer', 'position'],
+              colSpan: {
+                employer: { base: 1, sm: 2, md: 3, lg: 6 },
+                position: { base: 1, sm: 2, md: 3, lg: 6 },
+              },
+            },
+            {
+              id: 'employment-compensation',
+              fields: ['salary', 'startDate'],
+              colSpan: {
+                salary: { base: 1, sm: 2, md: 3, lg: 6 },
+                startDate: { base: 1, sm: 2, md: 3, lg: 6 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'experience-highlights',
+          title: 'Experience highlights',
+          description: 'Summarise your background and projects.',
+          rows: [
+            {
+              id: 'experience-summary',
+              fields: ['yearsExperience', 'keySkills'],
+              colSpan: {
+                yearsExperience: { base: 1, sm: 1, md: 2, lg: 4 },
+                keySkills: { base: 1, sm: 2, md: 4, lg: 8 },
+              },
+            },
+            {
+              id: 'experience-projects',
+              fields: ['highlightProjects'],
+              colSpan: {
+                highlightProjects: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'education-background',
+          title: 'Education',
+          description: 'Academic record and achievements.',
+          rows: [
+            {
+              id: 'education-degree',
+              fields: ['highestDegree'],
+              colSpan: {
+                highestDegree: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+            {
+              id: 'education-details',
+              fields: ['institution', 'graduationYear', 'gpa'],
+              colSpan: {
+                institution: { base: 1, sm: 2, md: 3, lg: 6 },
+                graduationYear: { base: 1, sm: 2, md: 2, lg: 3 },
+                gpa: { base: 1, sm: 2, md: 1, lg: 3 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'preferences-fit',
+          title: 'Role preferences',
+          description: 'What you are looking for in your next role.',
+          rows: [
+            {
+              id: 'preferences-basics',
+              fields: ['jobType', 'remotePreference'],
+              colSpan: {
+                jobType: { base: 1, sm: 1, md: 3, lg: 6 },
+                remotePreference: { base: 1, sm: 1, md: 3, lg: 6 },
+              },
+            },
+            {
+              id: 'preferences-compensation',
+              fields: ['salaryExpectation', 'availabilityDate', 'relocate'],
+              colSpan: {
+                salaryExpectation: { base: 1, sm: 2, md: 3, lg: 5 },
+                availabilityDate: { base: 1, sm: 2, md: 2, lg: 4 },
+                relocate: { base: 1, sm: 2, md: 1, lg: 3 },
+              },
+            },
+            {
+              id: 'preferences-location',
+              fields: ['preferredLocation'],
+              colSpan: {
+                preferredLocation: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+            {
+              id: 'preferences-references',
+              fields: ['references'],
+              colSpan: {
+                references: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'legal-confirmations',
+          title: 'Declarations',
+          description: 'Confirm your eligibility to work with us.',
+          rows: [
+            {
+              id: 'legal-review',
+              fields: ['workAuthorization', 'requiresSponsorship', 'backgroundCheckConsent'],
+              colSpan: {
+                workAuthorization: { base: 1, sm: 2, md: 2, lg: 4 },
+                requiresSponsorship: { base: 1, sm: 2, md: 2, lg: 4 },
+                backgroundCheckConsent: { base: 1, sm: 2, md: 2, lg: 4 },
+              },
+            },
+          ],
+        },
+        {
+          id: 'review-confirmation',
+          title: 'Final confirmation',
+          description: 'Agree to submit and optionally attach a cover letter.',
+          rows: [
+            {
+              id: 'review-consent',
+              fields: ['confirmAccuracy'],
+              colSpan: {
+                confirmAccuracy: { base: 1, sm: 2, md: 3, lg: 4 },
+              },
+            },
+            {
+              id: 'review-cover-letter',
+              fields: ['coverLetter'],
+              colSpan: {
+                coverLetter: { base: 1, sm: 2, md: 6, lg: 12 },
+              },
+            },
+          ],
+        },
+      ],
     },
     theme: {
       brandColor: '#1d4ed8',

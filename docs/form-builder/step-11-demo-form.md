@@ -292,7 +292,89 @@ export const demoFormSchema: UnifiedFormSchema = {
 };
 ```
 
-### 11.3 Create Main Demo Form Component
+### 11.3 Configure responsive grid layout
+
+The demo schema now opts into the Phase 3 grid renderer so that each step highlights responsive columns, contextual sections, and breakpoint-aware spans.
+
+```typescript
+// src/demo/DemoFormSchema.ts (excerpt)
+
+ui: {
+  layout: {
+    type: 'grid',
+    gutter: 24,
+    columns: 6,
+    breakpoints: {
+      base: 1,
+      sm: 2,
+      md: 6,
+      lg: 12,
+      xl: 12,
+      '2xl': 12,
+    },
+    sections: [
+      {
+        id: 'personal-details',
+        title: 'Contact details',
+        rows: [
+          {
+            id: 'personal-names',
+            fields: ['firstName', 'lastName'],
+            colSpan: {
+              firstName: { base: 1, sm: 1, md: 3, lg: 6 },
+              lastName: { base: 1, sm: 1, md: 3, lg: 6 },
+            },
+          },
+          {
+            id: 'personal-contact',
+            fields: ['email', 'phone'],
+            colSpan: {
+              email: { base: 1, sm: 2, md: 4, lg: 8 },
+              phone: { base: 1, sm: 2, md: 2, lg: 4 },
+            },
+          },
+        ],
+      },
+      {
+        id: 'review-confirmation',
+        title: 'Final confirmation',
+        rows: [
+          {
+            id: 'review-consent',
+            fields: ['confirmAccuracy'],
+            colSpan: {
+              confirmAccuracy: { base: 1, sm: 2, md: 3, lg: 4 },
+            },
+          },
+          {
+            id: 'review-cover-letter',
+            fields: ['coverLetter'],
+            colSpan: {
+              coverLetter: { base: 1, sm: 2, md: 6, lg: 12 },
+            },
+          },
+        ],
+      },
+    ],
+  },
+  widgets: {
+    // … existing widget configuration
+  },
+}
+```
+
+Sections map 1:1 with form steps so content is only rendered when relevant. Rows define field order, while `colSpan` values illustrate how the grid expands from single-column on mobile to multi-column layouts on larger breakpoints. Fields hidden via conditional rules collapse automatically, ensuring no empty grid cells remain.
+
+To verify locally, run the demo with layout flags enabled:
+
+```bash
+export NEXT_PUBLIC_FLAGS="gridLayout=1,nav.dedupeToken=1,nav.reviewFreeze=1,nav.jumpToFirstInvalidOn=submit"
+npm run dev
+```
+
+Submit an invalid form to see the alert banner, tick the confirmation checkbox to unblock submission, and confirm the review step renders formatted values instead of raw JSON.
+
+### 11.4 Create Main Demo Form Component
 ```typescript
 // src/demo/DemoForm.tsx
 
