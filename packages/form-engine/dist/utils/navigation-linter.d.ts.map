@@ -1,0 +1,1 @@
+{"version":3,"file":"navigation-linter.d.ts","sourceRoot":"","sources":["../../src/utils/navigation-linter.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAkB,iBAAiB,EAAE,eAAe,EAAE,MAAM,UAAU,CAAC;AAEnF,MAAM,WAAW,oBAAoB;IACnC,MAAM,EAAE,eAAe,EAAE,CAAC;IAC1B,QAAQ,EAAE,eAAe,EAAE,CAAC;CAC7B;AAMD,eAAO,MAAM,oBAAoB,GAAI,QAAQ,iBAAiB,KAAG,oBAkBhE,CAAC"}

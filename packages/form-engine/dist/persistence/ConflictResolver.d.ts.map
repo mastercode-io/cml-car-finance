@@ -1,0 +1,1 @@
+{"version":3,"file":"ConflictResolver.d.ts","sourceRoot":"","sources":["../../src/persistence/ConflictResolver.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,sBAAsB,CAAC;AAEtD,qBAAa,gBAAgB;WACd,gBAAgB,CAAC,UAAU,EAAE,SAAS,EAAE,WAAW,EAAE,SAAS,GAAG,OAAO,CAAC,SAAS,CAAC;IA0BhG,OAAO,CAAC,MAAM,CAAC,eAAe;IAwC9B,OAAO,CAAC,MAAM,CAAC,SAAS;CA6CzB"}

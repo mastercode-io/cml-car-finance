@@ -1,0 +1,1070 @@
+'use client';
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import * as React from 'react';
+import { FormProvider, useForm } from 'react-hook-form';
+import { FieldFactory } from '../components/fields/FieldFactory';
+import { FeaturesProvider, useFlag } from '../context/features';
+import { TransitionEngine } from '../rules/transition-engine';
+import { VisibilityController } from '../rules/visibility-controller';
+import { ValidationEngine } from '../validation/ajv-setup';
+import { createAjvResolver } from '../validation/rhf-resolver';
+import { cn } from '../utils/cn';
+import { formatValue as formatReviewValue } from '../utils/review-format';
+import { ErrorSummary } from './ErrorSummary';
+import { StepProgress } from './StepProgress';
+import { GridRenderer } from './layout/GridRenderer';
+import { flattenFieldErrors, getStepFieldNames, getStepStatus, resolveStepSchema, scrollToFirstError, } from './utils';
+import { useResolvedValidation, useValidationStrategyEffects } from './useValidation';
+const formatDuration = (ms) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+        return [hours, minutes, seconds].map((v) => v.toString().padStart(2, '0')).join(':');
+    }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+const INVALID_SUBMISSION_MESSAGE = 'Please review the highlighted fields: One or more fields require your attention.';
+const buildSubmissionSummary = (values, { schema, visibleSteps, retainHidden, visibilityController }) => {
+    const sanitizedValues = { ...values };
+    delete sanitizedValues._meta;
+    if (retainHidden)
+        return sanitizedValues;
+    const schemaFields = new Set();
+    schema.steps.forEach((step) => {
+        const stepSchema = resolveStepSchema(step, schema);
+        Object.keys(stepSchema.properties ?? {}).forEach((field) => schemaFields.add(field));
+    });
+    const visibleFieldSet = new Set();
+    visibleSteps.forEach((stepId) => {
+        visibilityController
+            .getVisibleFields(schema, stepId, sanitizedValues)
+            .forEach((field) => visibleFieldSet.add(field));
+    });
+    const summary = {};
+    Object.keys(sanitizedValues).forEach((key) => {
+        if (visibleFieldSet.has(key) || !schemaFields.has(key)) {
+            summary[key] = sanitizedValues[key];
+        }
+    });
+    return summary;
+};
+const FormRendererInner = ({ schema, initialData, onSubmit, onStepChange, onFieldChange, onValidationError, mode = 'create', className, gridBreakpointOverride, }) => {
+    const fallbackInitialDataRef = React.useRef({});
+    const resolvedInitialData = initialData ?? fallbackInitialDataRef.current;
+    const validationEngineRef = React.useRef(new ValidationEngine());
+    const visibilityControllerRef = React.useRef(new VisibilityController());
+    const transitionEngineRef = React.useRef(new TransitionEngine());
+    const currentStepSchemaRef = React.useRef(undefined);
+    const persistenceRef = React.useRef(null);
+    const persistencePromiseRef = React.useRef(null);
+    // Navigation de-dupe token (ignore stale/self navigation when enabled by flag)
+    const navigationTokenRef = React.useRef(0);
+    const { config: validationConfig, modes: validationModes } = useResolvedValidation(schema);
+    const validationStrategy = validationConfig.strategy;
+    const validationDebounceMs = validationConfig.debounceMs;
+    const shouldValidateOnStepChange = validationModes.validateOnStepChange;
+    const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
+    const [stepHistory, setStepHistory] = React.useState([]);
+    const [completedSteps, setCompletedSteps] = React.useState([]);
+    const [errorSteps, setErrorSteps] = React.useState([]);
+    const [highlightedReviewSection, setHighlightedReviewSection] = React.useState(null);
+    const [isSubmitting, setSubmitting] = React.useState(false);
+    const [submissionFeedback, setSubmissionFeedback] = React.useState(null);
+    const [sessionActionPending, setSessionActionPending] = React.useState(null);
+    const sessionTimeoutMs = React.useMemo(() => {
+        const configuredTimeout = schema.metadata?.timeout;
+        const minutes = typeof configuredTimeout === 'number' ? configuredTimeout : 30;
+        if (!minutes || minutes <= 0)
+            return 0;
+        return minutes * 60 * 1000;
+    }, [schema.metadata?.timeout]);
+    const [sessionExpiresAt, setSessionExpiresAt] = React.useState(() => sessionTimeoutMs > 0 ? Date.now() + sessionTimeoutMs : null);
+    const [timeRemainingMs, setTimeRemainingMs] = React.useState(() => sessionTimeoutMs > 0 ? sessionTimeoutMs : null);
+    const [isSessionExpired, setSessionExpired] = React.useState(false);
+    const submitInFlightRef = React.useRef(false);
+    // Feature flags
+    const navDedupeEnabled = useFlag('nav.dedupeToken');
+    const reviewFreezeEnabled = useFlag('nav.reviewFreeze');
+    const jumpToFirstInvalidFlag = useFlag('nav.jumpToFirstInvalidOn', 'submit');
+    // Review navigation policy (flag can force freeze/terminal regardless of schema)
+    const reviewNavigation = React.useMemo(() => {
+        const base = schema.navigation?.review ?? {};
+        const stepId = base.stepId ?? 'review';
+        const validate = base.validate ?? 'form';
+        const freezeNavigation = reviewFreezeEnabled ? true : base.freezeNavigation ?? true;
+        const terminal = reviewFreezeEnabled ? true : base.terminal ?? true;
+        return { stepId, freezeNavigation, terminal, validate };
+    }, [reviewFreezeEnabled, schema.navigation?.review]);
+    // Jump-to-first-invalid policy (schema may override; flag provides default)
+    const jumpToFirstInvalidOn = React.useMemo(() => schema.navigation?.jumpToFirstInvalidOn ?? jumpToFirstInvalidFlag, [jumpToFirstInvalidFlag, schema.navigation?.jumpToFirstInvalidOn]);
+    const shouldJumpOnSubmit = jumpToFirstInvalidOn !== 'never';
+    const shouldJumpOnNext = jumpToFirstInvalidOn === 'next';
+    // Navigation token helpers
+    const bumpNavigationToken = React.useCallback(() => {
+        if (!navDedupeEnabled)
+            return 0;
+        navigationTokenRef.current += 1;
+        return navigationTokenRef.current;
+    }, [navDedupeEnabled]);
+    const beginNavigation = React.useCallback(() => {
+        if (!navDedupeEnabled)
+            return 0;
+        return bumpNavigationToken();
+    }, [bumpNavigationToken, navDedupeEnabled]);
+    const cancelPendingNavigation = React.useCallback(() => {
+        if (!navDedupeEnabled)
+            return;
+        bumpNavigationToken();
+    }, [bumpNavigationToken, navDedupeEnabled]);
+    const isNavigationTokenCurrent = React.useCallback((token) => (!navDedupeEnabled ? true : navigationTokenRef.current === token), [navDedupeEnabled]);
+    // Per-step AJV resolver wired into RHF
+    const resolver = React.useCallback(async (values, context, options) => {
+        const schemaForStep = currentStepSchemaRef.current;
+        if (!schemaForStep) {
+            return { values, errors: {} };
+        }
+        const stepResolver = createAjvResolver(schemaForStep, validationEngineRef.current);
+        return stepResolver(values, context, options);
+    }, []);
+    const methods = useForm({
+        defaultValues: resolvedInitialData,
+        resolver,
+        mode: validationModes.mode,
+        reValidateMode: validationModes.reValidateMode,
+        shouldUnregister: false,
+    });
+    const flushPendingValidation = useValidationStrategyEffects(methods, validationStrategy, validationDebounceMs);
+    const { reset } = methods;
+    // Reset values when initial data changes
+    React.useEffect(() => {
+        reset(resolvedInitialData, {
+            keepDirty: false,
+            keepErrors: false,
+            keepDefaultValues: false,
+        });
+    }, [reset, resolvedInitialData]);
+    // Initialize/refresh session timers when schema or timeout changes
+    React.useEffect(() => {
+        if (sessionTimeoutMs <= 0) {
+            setSessionExpiresAt(null);
+            setTimeRemainingMs(null);
+            setSessionExpired(false);
+            return;
+        }
+        setSessionExpiresAt(Date.now() + sessionTimeoutMs);
+        setTimeRemainingMs(sessionTimeoutMs);
+        setSessionExpired(false);
+    }, [schema.$id, sessionTimeoutMs]);
+    // Ticker to update remaining time and handle expiry
+    React.useEffect(() => {
+        if (!sessionExpiresAt || isSessionExpired || typeof window === 'undefined')
+            return;
+        const updateRemaining = () => {
+            const remaining = sessionExpiresAt - Date.now();
+            if (remaining <= 0) {
+                setSessionExpired(true);
+                setTimeRemainingMs(0);
+                setSubmissionFeedback({
+                    type: 'error',
+                    message: 'Your session expired. Start a new session or restore a saved draft to continue.',
+                });
+                setSubmitting(false);
+                return;
+            }
+            setTimeRemainingMs(remaining);
+        };
+        updateRemaining();
+        const intervalId = window.setInterval(updateRemaining, 1000);
+        return () => window.clearInterval(intervalId);
+    }, [isSessionExpired, sessionExpiresAt]);
+    const watchedValues = methods.watch();
+    // Visibility-calculated step list
+    const visibleSteps = React.useMemo(() => {
+        return visibilityControllerRef.current.getVisibleSteps(schema, watchedValues);
+    }, [schema, watchedValues]);
+    // Sanitize history/completed/error lists if steps hide/show
+    const sanitizedStepHistory = React.useMemo(() => stepHistory.filter((step) => visibleSteps.includes(step)), [stepHistory, visibleSteps]);
+    React.useEffect(() => {
+        if (sanitizedStepHistory.length !== stepHistory.length) {
+            setStepHistory(sanitizedStepHistory);
+        }
+    }, [sanitizedStepHistory, stepHistory]);
+    React.useEffect(() => {
+        setCompletedSteps((prev) => prev.filter((step) => visibleSteps.includes(step)));
+    }, [visibleSteps]);
+    React.useEffect(() => {
+        setErrorSteps((prev) => prev.filter((step) => visibleSteps.includes(step)));
+    }, [visibleSteps]);
+    // Current step
+    const currentStepId = visibleSteps[currentStepIndex] ?? visibleSteps[0];
+    const currentStepConfig = schema.steps.find((step) => step.id === currentStepId);
+    const currentStepSchema = currentStepConfig
+        ? resolveStepSchema(currentStepConfig, schema)
+        : undefined;
+    currentStepSchemaRef.current = currentStepSchema;
+    const reviewStepId = schema.navigation?.review?.stepId ?? 'review';
+    const isReviewStep = currentStepId === reviewStepId;
+    const isReviewFrozen = isReviewStep && reviewNavigation.freezeNavigation;
+    // Callbacks for external listeners
+    React.useEffect(() => {
+        if (currentStepConfig && onStepChange) {
+            onStepChange(currentStepConfig.id);
+        }
+    }, [currentStepConfig, onStepChange]);
+    React.useEffect(() => {
+        const subscription = methods.watch((values, { name }) => {
+            if (name && onFieldChange) {
+                onFieldChange(name, values?.[name]);
+            }
+            visibilityControllerRef.current.clearCache();
+        });
+        return () => subscription.unsubscribe();
+    }, [methods, onFieldChange]);
+    React.useEffect(() => {
+        if (methods.formState.errors && Object.keys(methods.formState.errors).length > 0) {
+            onValidationError?.(methods.formState.errors);
+        }
+    }, [methods.formState.errors, onValidationError]);
+    // If current index points past the visible list, snap back
+    React.useEffect(() => {
+        if (currentStepIndex >= visibleSteps.length && visibleSteps.length > 0) {
+            cancelPendingNavigation();
+            setCurrentStepIndex(visibleSteps.length - 1);
+        }
+    }, [cancelPendingNavigation, currentStepIndex, visibleSteps]);
+    // Map step -> fields
+    const stepFieldMap = React.useMemo(() => {
+        return new Map(schema.steps.map((step) => [step.id, new Set(getStepFieldNames(step, schema))]));
+    }, [schema]);
+    // First invalid step finder
+    const getFirstInvalidStep = React.useCallback(() => {
+        const flattened = flattenFieldErrors(methods.formState.errors);
+        for (const stepId of visibleSteps) {
+            const fields = stepFieldMap.get(stepId);
+            if (!fields)
+                continue;
+            const hasError = flattened.some(({ name }) => {
+                const rootField = name.split('.')[0];
+                return rootField && fields.has(rootField);
+            });
+            if (hasError)
+                return stepId;
+        }
+        return undefined;
+    }, [methods.formState.errors, stepFieldMap, visibleSteps]);
+    const handleInvalidDuringSubmit = React.useCallback((targetStep) => {
+        setSubmissionFeedback({
+            type: 'error',
+            message: INVALID_SUBMISSION_MESSAGE,
+        });
+        if (!shouldJumpOnSubmit || !targetStep) {
+            return;
+        }
+        const targetIndex = visibleSteps.indexOf(targetStep);
+        if (targetIndex < 0) {
+            return;
+        }
+        if (isReviewStep && reviewNavigation.validate === 'form') {
+            setHighlightedReviewSection(targetStep);
+            return;
+        }
+        cancelPendingNavigation();
+        setCurrentStepIndex(targetIndex);
+    }, [
+        setSubmissionFeedback,
+        shouldJumpOnSubmit,
+        visibleSteps,
+        isReviewStep,
+        reviewNavigation.validate,
+        cancelPendingNavigation,
+        setCurrentStepIndex,
+        setHighlightedReviewSection,
+    ]);
+    // Steps that currently have any field errors
+    const stepErrorsFromState = React.useMemo(() => {
+        const flattened = flattenFieldErrors(methods.formState.errors);
+        const stepsWithErrors = new Set();
+        flattened.forEach(({ name }) => {
+            const rootField = name.split('.')[0];
+            if (!rootField)
+                return;
+            for (const [stepId, fields] of stepFieldMap.entries()) {
+                if (fields.has(rootField)) {
+                    stepsWithErrors.add(stepId);
+                    break;
+                }
+            }
+        });
+        return Array.from(stepsWithErrors);
+    }, [methods.formState.errors, stepFieldMap]);
+    React.useEffect(() => {
+        setErrorSteps((prev) => {
+            const unique = Array.from(new Set(stepErrorsFromState));
+            if (unique.length === prev.length && unique.every((s) => prev.includes(s))) {
+                return prev;
+            }
+            return unique;
+        });
+    }, [stepErrorsFromState]);
+    const errorStepSet = React.useMemo(() => new Set(errorSteps), [errorSteps]);
+    React.useEffect(() => {
+        if (!isReviewStep) {
+            if (highlightedReviewSection !== null) {
+                setHighlightedReviewSection(null);
+            }
+            return;
+        }
+        if (!highlightedReviewSection)
+            return;
+        if (typeof document === 'undefined')
+            return;
+        const element = document.getElementById(`review-section-${highlightedReviewSection}`);
+        if (element && typeof element.scrollIntoView === 'function') {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [highlightedReviewSection, isReviewStep]);
+    React.useEffect(() => {
+        if (!highlightedReviewSection)
+            return;
+        if (!errorStepSet.has(highlightedReviewSection)) {
+            setHighlightedReviewSection(null);
+        }
+    }, [highlightedReviewSection, errorStepSet]);
+    // Persistence manager (lazy)
+    const ensurePersistenceManager = React.useCallback(async () => {
+        if (typeof window === 'undefined')
+            return null;
+        if (persistenceRef.current)
+            return persistenceRef.current;
+        if (!persistencePromiseRef.current) {
+            persistencePromiseRef.current = import('../persistence/PersistenceManager')
+                .then(({ PersistenceManager: PersistenceManagerModule }) => {
+                const manager = new PersistenceManagerModule({
+                    formId: schema.$id,
+                    schemaVersion: schema.version,
+                    allowAutosave: schema.metadata.allowAutosave !== false,
+                    sensitivity: schema.metadata.sensitivity,
+                });
+                persistenceRef.current = manager;
+                return manager;
+            })
+                .catch((error) => {
+                console.error('Failed to initialize persistence manager', error);
+                return null;
+            });
+        }
+        const manager = await persistencePromiseRef.current;
+        if (!manager) {
+            persistencePromiseRef.current = null;
+        }
+        return manager;
+    }, [schema.$id, schema.metadata.allowAutosave, schema.metadata.sensitivity, schema.version]);
+    React.useEffect(() => {
+        return () => {
+            persistenceRef.current = null;
+            persistencePromiseRef.current = null;
+        };
+    }, []);
+    // Apply AJV errors to RHF — fixed mapping for `required`
+    const applyValidationErrors = React.useCallback((errors) => {
+        methods.clearErrors();
+        errors.forEach((err) => {
+            const instancePath = err.instancePath;
+            const rawBase = typeof instancePath === 'string'
+                ? instancePath
+                : typeof err.path === 'string'
+                    ? err.path
+                    : '';
+            const basePath = rawBase.replace(/^\//, '').replace(/\//g, '.');
+            let name = (basePath || err.property || '').trim();
+            if ((err.keyword === 'required' || err.keyword === 'required') &&
+                err.params &&
+                typeof err.params.missingProperty === 'string') {
+                const missing = err.params.missingProperty;
+                name = name ? `${name}.${missing}` : missing;
+            }
+            if (!name)
+                return;
+            methods.setError(name, {
+                type: err.keyword || 'manual',
+                message: err.message || 'Invalid value',
+            });
+        });
+    }, [methods]);
+    const markStepError = React.useCallback((stepId) => {
+        setErrorSteps((prev) => (prev.includes(stepId) ? prev : [...prev, stepId]));
+    }, []);
+    const clearStepError = React.useCallback((stepId) => {
+        setErrorSteps((prev) => prev.filter((item) => item !== stepId));
+    }, []);
+    // Validate current step using RHF trigger (schema-aware via resolver)
+    const validateCurrentStep = React.useCallback(async () => {
+        if (!shouldValidateOnStepChange)
+            return true;
+        if (!currentStepSchema || !currentStepId)
+            return true;
+        const stepFields = Object.keys(currentStepSchema.properties ?? {});
+        const isValid = await methods.trigger(stepFields, { shouldFocus: false });
+        if (isValid) {
+            clearStepError(currentStepId);
+        }
+        else {
+            markStepError(currentStepId);
+        }
+        return isValid;
+    }, [
+        shouldValidateOnStepChange,
+        currentStepSchema,
+        currentStepId,
+        methods,
+        clearStepError,
+        markStepError,
+    ]);
+    // Validate all steps via Ajv (Transition/Submit flows)
+    const validateAllSteps = React.useCallback(async (data) => {
+        for (const stepId of visibleSteps) {
+            const stepConfig = schema.steps.find((step) => step.id === stepId);
+            if (!stepConfig)
+                continue;
+            const stepSchema = resolveStepSchema(stepConfig, schema);
+            const result = await validationEngineRef.current.validate(stepSchema, data);
+            if (!result.valid) {
+                applyValidationErrors(result.errors);
+                markStepError(stepConfig.id);
+                return { valid: false, failedStep: stepConfig.id };
+            }
+            clearStepError(stepConfig.id);
+        }
+        return { valid: true };
+    }, [applyValidationErrors, clearStepError, markStepError, schema, visibleSteps]);
+    // Persistence after failure
+    const saveDraftAfterFailure = React.useCallback(async (values) => {
+        const manager = await ensurePersistenceManager();
+        if (!manager)
+            return false;
+        const stepId = currentStepId ??
+            visibleSteps[currentStepIndex] ??
+            visibleSteps[visibleSteps.length - 1] ??
+            schema.steps[0]?.id ??
+            'root';
+        try {
+            await manager.saveDraft(values, stepId, completedSteps, {
+                manual: true,
+                immediate: true,
+            });
+            await manager.flushPendingSaves();
+            return true;
+        }
+        catch (error) {
+            console.error('Failed to persist draft after submission failure', error);
+            return false;
+        }
+    }, [
+        ensurePersistenceManager,
+        currentStepId,
+        currentStepIndex,
+        visibleSteps,
+        schema.steps,
+        completedSteps,
+    ]);
+    // Helpers to classify errors
+    const getErrorStatus = React.useCallback((error) => {
+        if (!error || typeof error !== 'object')
+            return undefined;
+        const withStatus = error;
+        if (typeof withStatus.status === 'number')
+            return withStatus.status;
+        if (withStatus.response && typeof withStatus.response === 'object') {
+            const responseStatus = withStatus.response.status;
+            if (typeof responseStatus === 'number')
+                return responseStatus;
+        }
+        if (withStatus.cause && typeof withStatus.cause === 'object') {
+            const causeStatus = withStatus.cause.status;
+            if (typeof causeStatus === 'number')
+                return causeStatus;
+        }
+        return undefined;
+    }, []);
+    const isOfflineError = React.useCallback((error) => {
+        const navigatorOffline = typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+            ? navigator.onLine === false
+            : false;
+        if (navigatorOffline)
+            return true;
+        if (error instanceof TypeError)
+            return true;
+        if (error && typeof error === 'object' && 'message' in error) {
+            const message = error.message;
+            if (typeof message === 'string') {
+                const lower = message.toLowerCase();
+                if (lower.includes('failed to fetch') || lower.includes('networkerror'))
+                    return true;
+            }
+        }
+        return false;
+    }, []);
+    // Submit flow
+    const handleFormSubmit = React.useCallback(async () => {
+        if (isSessionExpired) {
+            setSubmissionFeedback({
+                type: 'error',
+                message: 'Your session expired. Start a new session to submit the form.',
+            });
+            return;
+        }
+        if (submitInFlightRef.current)
+            return;
+        submitInFlightRef.current = true;
+        setSubmitting(true);
+        setSubmissionFeedback(null);
+        try {
+            setHighlightedReviewSection(null);
+            await flushPendingValidation();
+            const shouldRunFullValidation = !isReviewStep || reviewNavigation.validate === 'form';
+            const shouldRunStepValidation = isReviewStep && reviewNavigation.validate === 'step';
+            if (shouldRunStepValidation) {
+                const isStepValid = await validateCurrentStep();
+                if (!isStepValid) {
+                    handleInvalidDuringSubmit(currentStepId);
+                    scrollToFirstError();
+                    onValidationError?.(methods.formState.errors);
+                    return;
+                }
+            }
+            let values = methods.getValues();
+            if (shouldRunFullValidation) {
+                const isFormValid = await methods.trigger(undefined, { shouldFocus: false });
+                if (!isFormValid) {
+                    handleInvalidDuringSubmit(getFirstInvalidStep());
+                    scrollToFirstError();
+                    onValidationError?.(methods.formState.errors);
+                    return;
+                }
+                values = methods.getValues();
+                const { valid, failedStep } = await validateAllSteps(values);
+                if (!valid) {
+                    handleInvalidDuringSubmit(failedStep ?? getFirstInvalidStep());
+                    scrollToFirstError();
+                    onValidationError?.(methods.formState.errors);
+                    return;
+                }
+            }
+            // Build submission payload (respect retainHidden)
+            const summaryValues = buildSubmissionSummary(values, {
+                schema,
+                visibleSteps,
+                retainHidden: schema.metadata?.retainHidden === true,
+                visibilityController: visibilityControllerRef.current,
+            });
+            const submissionData = {
+                ...summaryValues,
+                _meta: {
+                    schemaId: schema.$id,
+                    schemaVersion: schema.version,
+                    submittedAt: new Date().toISOString(),
+                    completedSteps: visibleSteps,
+                },
+            };
+            // Retry policy for transient server errors
+            const maxAttempts = 3;
+            const baseDelay = 500;
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                try {
+                    await onSubmit(submissionData);
+                    setCompletedSteps((prev) => Array.from(new Set([...prev, ...visibleSteps])));
+                    setSubmissionFeedback(null);
+                    return;
+                }
+                catch (error) {
+                    const offline = isOfflineError(error);
+                    const status = getErrorStatus(error);
+                    const retryable = typeof status === 'number' ? status === 429 || (status >= 500 && status < 600) : false;
+                    if (attempt < maxAttempts && retryable && !offline) {
+                        setSubmissionFeedback({
+                            type: 'info',
+                            message: `Submission failed (attempt ${attempt} of ${maxAttempts}). Retrying…`,
+                        });
+                        const delay = baseDelay * 2 ** (attempt - 1);
+                        await new Promise((resolve) => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    // Persist draft on failure (esp. offline)
+                    const draftSaved = await saveDraftAfterFailure(values);
+                    if (offline) {
+                        setSubmissionFeedback({
+                            type: 'error',
+                            message: draftSaved
+                                ? 'You appear to be offline. We saved your progress so you can try again when you reconnect.'
+                                : 'You appear to be offline. Check your connection and try again when you are back online.',
+                        });
+                        console.error('Form submission failed (offline)', error);
+                    }
+                    else {
+                        setSubmissionFeedback({
+                            type: 'error',
+                            message: draftSaved
+                                ? 'We were unable to submit your form. Your progress was saved so you can try again shortly.'
+                                : 'We were unable to submit your form. Please try again shortly.',
+                        });
+                        console.error('Form submission failed', error);
+                    }
+                    return;
+                }
+            }
+        }
+        finally {
+            submitInFlightRef.current = false;
+            setSubmitting(false);
+        }
+    }, [
+        isSessionExpired,
+        flushPendingValidation,
+        methods,
+        getFirstInvalidStep,
+        onValidationError,
+        validateAllSteps,
+        schema,
+        visibleSteps,
+        isOfflineError,
+        getErrorStatus,
+        saveDraftAfterFailure,
+        onSubmit,
+        handleInvalidDuringSubmit,
+        isReviewStep,
+        reviewNavigation.validate,
+        validateCurrentStep,
+        currentStepId,
+    ]);
+    const handleSubmitEvent = React.useCallback((event) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        void handleFormSubmit();
+    }, [handleFormSubmit]);
+    // Next/Previous navigation with de-dupe token + review policy
+    const handleNext = React.useCallback(async () => {
+        if (isSessionExpired || !currentStepSchema || !currentStepConfig || !currentStepId)
+            return;
+        const navigationToken = beginNavigation();
+        const isValid = await validateCurrentStep();
+        if (!isValid) {
+            scrollToFirstError();
+            if (shouldJumpOnNext) {
+                const targetStep = getFirstInvalidStep();
+                if (targetStep) {
+                    const targetIndex = visibleSteps.indexOf(targetStep);
+                    if (targetIndex >= 0) {
+                        cancelPendingNavigation();
+                        setCurrentStepIndex(targetIndex);
+                    }
+                }
+            }
+            return;
+        }
+        if (!isNavigationTokenCurrent(navigationToken))
+            return;
+        clearStepError(currentStepId);
+        const isReviewStep = currentStepId === reviewStepId;
+        const treatAsTerminal = isReviewStep && (reviewNavigation.freezeNavigation || reviewNavigation.terminal);
+        let nextStepId;
+        if (!treatAsTerminal) {
+            nextStepId =
+                transitionEngineRef.current.getNextStep(schema, currentStepConfig.id, methods.getValues(), { navigationReviewPolicy: reviewNavigation }) ?? undefined;
+            if (nextStepId && !visibleSteps.includes(nextStepId)) {
+                nextStepId = undefined;
+            }
+            if (!nextStepId) {
+                nextStepId = visibleSteps[currentStepIndex + 1];
+            }
+        }
+        // Ignore self-navigation if dedupe is enabled
+        if (navDedupeEnabled && nextStepId === currentStepId)
+            return;
+        setCompletedSteps((prev) => (prev.includes(currentStepId) ? prev : [...prev, currentStepId]));
+        if (nextStepId) {
+            const nextIndex = visibleSteps.indexOf(nextStepId);
+            if (nextIndex >= 0) {
+                if (!isNavigationTokenCurrent(navigationToken))
+                    return;
+                setStepHistory((history) => {
+                    if (navDedupeEnabled && history[history.length - 1] === currentStepId) {
+                        return history;
+                    }
+                    return [...history, currentStepId];
+                });
+                setCurrentStepIndex(nextIndex);
+                return;
+            }
+        }
+        // End of flow → submit
+        if (currentStepIndex === visibleSteps.length - 1) {
+            if (!isNavigationTokenCurrent(navigationToken))
+                return;
+            await handleFormSubmit();
+        }
+    }, [
+        isSessionExpired,
+        currentStepSchema,
+        currentStepConfig,
+        currentStepId,
+        beginNavigation,
+        validateCurrentStep,
+        shouldJumpOnNext,
+        getFirstInvalidStep,
+        cancelPendingNavigation,
+        clearStepError,
+        reviewNavigation,
+        schema,
+        methods,
+        navDedupeEnabled,
+        visibleSteps,
+        currentStepIndex,
+        isNavigationTokenCurrent,
+        handleFormSubmit,
+    ]);
+    const handlePrevious = React.useCallback(() => {
+        if (isSessionExpired || !currentStepId)
+            return;
+        if (isReviewStep && reviewNavigation.freezeNavigation)
+            return;
+        const previousFromHistory = stepHistory[stepHistory.length - 1];
+        const fallbackIndex = visibleSteps.indexOf(currentStepId) - 1;
+        const fallbackStep = fallbackIndex >= 0 ? visibleSteps[fallbackIndex] : undefined;
+        const targetStep = previousFromHistory ?? fallbackStep;
+        if (!targetStep)
+            return;
+        const previousIndex = visibleSteps.indexOf(targetStep);
+        if (previousIndex >= 0) {
+            cancelPendingNavigation();
+            setStepHistory((history) => history.slice(0, -1));
+            setCurrentStepIndex(previousIndex);
+        }
+    }, [
+        isSessionExpired,
+        currentStepId,
+        stepHistory,
+        visibleSteps,
+        cancelPendingNavigation,
+        isReviewStep,
+        reviewNavigation.freezeNavigation,
+    ]);
+    const handleReviewSectionEdit = React.useCallback((stepId) => {
+        if (isSessionExpired)
+            return;
+        const targetIndex = visibleSteps.indexOf(stepId);
+        if (targetIndex < 0)
+            return;
+        cancelPendingNavigation();
+        if (currentStepId) {
+            setStepHistory((history) => {
+                if (history[history.length - 1] === currentStepId) {
+                    return history;
+                }
+                return [...history, currentStepId];
+            });
+        }
+        setHighlightedReviewSection(null);
+        setCurrentStepIndex(targetIndex);
+    }, [
+        isSessionExpired,
+        visibleSteps,
+        cancelPendingNavigation,
+        currentStepId,
+    ]);
+    // Utilities
+    const focusField = React.useCallback((fieldName) => {
+        if (typeof document === 'undefined')
+            return;
+        const escapedName = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+            ? CSS.escape(fieldName)
+            : fieldName.replace(/"/g, '\\"');
+        const selector = `[name="${escapedName}"]`;
+        const element = document.querySelector(selector);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (typeof element.focus === 'function') {
+                element.focus({ preventScroll: true });
+            }
+        }
+    }, []);
+    // Session banner
+    const warningThresholdMs = React.useMemo(() => {
+        if (!sessionTimeoutMs)
+            return 0;
+        return Math.min(sessionTimeoutMs, 5 * 60 * 1000);
+    }, [sessionTimeoutMs]);
+    const sessionBanner = React.useMemo(() => {
+        if (!sessionTimeoutMs || timeRemainingMs == null)
+            return null;
+        if (isSessionExpired) {
+            return {
+                type: 'error',
+                message: 'Your session expired. Start a new session or restore a saved draft to continue.',
+            };
+        }
+        const message = `Session expires in ${formatDuration(timeRemainingMs)}.`;
+        if (timeRemainingMs <= warningThresholdMs) {
+            return { type: 'warning', message };
+        }
+        return { type: 'info', message };
+    }, [isSessionExpired, sessionTimeoutMs, timeRemainingMs, warningThresholdMs]);
+    // Session control handlers
+    const handleRestartSession = React.useCallback(async () => {
+        if (!sessionTimeoutMs)
+            return;
+        setSessionActionPending('restart');
+        try {
+            const manager = await ensurePersistenceManager();
+            if (manager) {
+                try {
+                    await manager.deleteDraft();
+                }
+                catch (error) {
+                    console.error('Failed to delete draft when restarting session', error);
+                }
+            }
+            setCompletedSteps([]);
+            setErrorSteps([]);
+            setStepHistory([]);
+            cancelPendingNavigation();
+            setCurrentStepIndex(0);
+            visibilityControllerRef.current.clearCache();
+            reset(resolvedInitialData, {
+                keepDefaultValues: false,
+                keepDirty: false,
+                keepErrors: false,
+            });
+            const nextExpiry = Date.now() + sessionTimeoutMs;
+            setSessionExpiresAt(nextExpiry);
+            setTimeRemainingMs(sessionTimeoutMs);
+            setSessionExpired(false);
+            setSubmissionFeedback({
+                type: 'info',
+                message: 'Started a new session. You can continue completing the form.',
+            });
+        }
+        catch (error) {
+            console.error('Failed to restart session', error);
+            setSubmissionFeedback({
+                type: 'error',
+                message: 'We could not restart your session. Please reload the page to continue.',
+            });
+        }
+        finally {
+            setSessionActionPending(null);
+        }
+    }, [sessionTimeoutMs, ensurePersistenceManager, cancelPendingNavigation, reset, resolvedInitialData]);
+    const handleRestoreSession = React.useCallback(async () => {
+        if (!sessionTimeoutMs)
+            return;
+        setSessionActionPending('restore');
+        try {
+            const manager = await ensurePersistenceManager();
+            if (!manager) {
+                setSubmissionFeedback({
+                    type: 'error',
+                    message: 'Saved progress is unavailable. Start a new session to continue.',
+                });
+                return;
+            }
+            const draft = await manager.loadDraft();
+            if (!draft) {
+                setSubmissionFeedback({
+                    type: 'error',
+                    message: 'No saved progress found. Start a new session to continue.',
+                });
+                return;
+            }
+            reset(draft.data ?? {}, {
+                keepDefaultValues: false,
+                keepDirty: false,
+                keepErrors: false,
+            });
+            visibilityControllerRef.current.clearCache();
+            setCompletedSteps(Array.isArray(draft.completedSteps) ? draft.completedSteps : []);
+            setErrorSteps([]);
+            setStepHistory([]);
+            if (draft.currentStep) {
+                const targetIndex = Math.max(schema.steps.findIndex((step) => step.id === draft.currentStep), 0);
+                cancelPendingNavigation();
+                setCurrentStepIndex(targetIndex >= 0 ? targetIndex : 0);
+            }
+            else {
+                cancelPendingNavigation();
+                setCurrentStepIndex(0);
+            }
+            const nextExpiry = Date.now() + sessionTimeoutMs;
+            setSessionExpiresAt(nextExpiry);
+            setTimeRemainingMs(sessionTimeoutMs);
+            setSessionExpired(false);
+            setSubmissionFeedback({
+                type: 'info',
+                message: 'Restored your saved progress and restarted the session.',
+            });
+        }
+        catch (error) {
+            console.error('Failed to restore session from draft', error);
+            setSubmissionFeedback({
+                type: 'error',
+                message: 'We could not restore your saved progress. Start a new session to continue.',
+            });
+        }
+        finally {
+            setSessionActionPending(null);
+        }
+    }, [sessionTimeoutMs, ensurePersistenceManager, reset, schema.steps, cancelPendingNavigation]);
+    // Layout selection by feature flag
+    const layoutType = schema.ui?.layout?.type ?? 'single-column';
+    const prefersGridLayout = layoutType === 'grid';
+    const isGridLayoutEnabled = useFlag('gridLayout');
+    const activeLayout = prefersGridLayout && isGridLayoutEnabled ? 'grid' : 'single-column';
+    if (!currentStepSchema || !currentStepConfig || !visibleSteps.length) {
+        return null;
+    }
+    const stepProperties = currentStepSchema.properties ?? {};
+    const visibleFields = isReviewStep
+        ? Object.keys(stepProperties)
+        : visibilityControllerRef.current.getVisibleFields(schema, currentStepId, watchedValues);
+    const requiredFieldSet = React.useMemo(() => {
+        const requiredList = Array.isArray(currentStepSchema.required)
+            ? currentStepSchema.required
+            : [];
+        return new Set(requiredList);
+    }, [currentStepSchema]);
+    const stepStatusList = visibleSteps.map((stepId) => getStepStatus(stepId, currentStepId, completedSteps, errorStepSet));
+    const widgetDefinitions = schema.ui?.widgets ?? {};
+    const renderField = (fieldName) => {
+        if (!visibleFields.includes(fieldName))
+            return null;
+        const uiConfig = widgetDefinitions[fieldName];
+        if (!uiConfig) {
+            console.warn(`No widget configuration found for field: ${fieldName}`);
+            return null;
+        }
+        const { component, label, placeholder, helpText, description, className: widgetClassName, options, disabled, readOnly, layout: _layoutHints, ...componentProps } = uiConfig;
+        const widget = component ?? 'Text';
+        const fieldError = methods.formState.errors?.[fieldName];
+        const errorMessage = (() => {
+            if (fieldError && typeof fieldError === 'object' && 'message' in fieldError) {
+                return fieldError.message ?? 'Invalid value';
+            }
+            if (typeof fieldError === 'string')
+                return fieldError;
+            return undefined;
+        })();
+        const isRequired = requiredFieldSet.has(fieldName);
+        const requireTrueRule = widget === 'Checkbox' && isRequired
+            ? {
+                validate: (value) => value === true || `${fieldName} is required`,
+            }
+            : undefined;
+        return (_jsx(FieldFactory, { name: fieldName, label: label ?? fieldName, widget: widget, placeholder: placeholder, description: description, helpText: helpText, className: widgetClassName, disabled: mode === 'view' || disabled || isSessionExpired, readOnly: readOnly, required: isRequired, control: methods.control, rules: requireTrueRule, options: options, componentProps: componentProps, error: errorMessage }, fieldName));
+    };
+    const reviewSummaryValues = React.useMemo(() => {
+        if (!isReviewStep)
+            return null;
+        return buildSubmissionSummary(watchedValues, {
+            schema,
+            visibleSteps,
+            retainHidden: schema.metadata?.retainHidden === true,
+            visibilityController: visibilityControllerRef.current,
+        });
+    }, [
+        isReviewStep,
+        watchedValues,
+        schema,
+        visibleSteps,
+        schema.metadata?.retainHidden,
+    ]);
+    const reviewSections = React.useMemo(() => {
+        if (!isReviewStep || !reviewSummaryValues) {
+            return [];
+        }
+        const summaryRecord = reviewSummaryValues;
+        const sections = [];
+        for (const stepId of visibleSteps) {
+            if (stepId === reviewStepId)
+                continue;
+            const stepConfig = schema.steps.find((step) => step.id === stepId);
+            if (!stepConfig)
+                continue;
+            const fields = stepFieldMap.get(stepId);
+            const entries = [];
+            if (fields) {
+                fields.forEach((field) => {
+                    if (!Object.prototype.hasOwnProperty.call(summaryRecord, field)) {
+                        return;
+                    }
+                    entries.push({
+                        field,
+                        label: widgetDefinitions[field]?.label ?? field,
+                        value: formatReviewValue(summaryRecord[field], field, schema, widgetDefinitions[field]),
+                    });
+                });
+            }
+            sections.push({
+                stepId,
+                title: stepConfig.title,
+                description: stepConfig.description,
+                entries,
+            });
+        }
+        return sections;
+    }, [
+        isReviewStep,
+        reviewSummaryValues,
+        visibleSteps,
+        reviewStepId,
+        schema.steps,
+        stepFieldMap,
+        widgetDefinitions,
+    ]);
+    return (_jsx(FormProvider, { ...methods, children: _jsxs("form", { className: className, "data-layout": activeLayout, onSubmit: handleSubmitEvent, noValidate: true, children: [submissionFeedback ? (_jsx("div", { role: submissionFeedback.type === 'error' ? 'alert' : 'status', "aria-live": submissionFeedback.type === 'error' ? 'assertive' : 'polite', className: cn('rounded-md border px-4 py-3 text-sm', submissionFeedback.type === 'error'
+                        ? 'border-red-200 bg-red-50 text-red-900'
+                        : 'border-blue-200 bg-blue-50 text-blue-900'), children: submissionFeedback.message })) : null, (() => {
+                    const warningThresholdMs = Math.min(sessionTimeoutMs || 0, 5 * 60 * 1000);
+                    const sessionBanner = !sessionTimeoutMs || timeRemainingMs == null
+                        ? null
+                        : isSessionExpired
+                            ? {
+                                type: 'error',
+                                message: 'Your session expired. Start a new session or restore a saved draft to continue.',
+                            }
+                            : {
+                                type: timeRemainingMs <= warningThresholdMs ? 'warning' : 'info',
+                                message: `Session expires in ${formatDuration(timeRemainingMs)}.`,
+                            };
+                    return sessionBanner ? (_jsx("div", { role: sessionBanner.type === 'error' ? 'alert' : 'status', "aria-live": sessionBanner.type === 'error' ? 'assertive' : 'polite', className: cn('rounded-md border px-4 py-3 text-sm', sessionBanner.type === 'error'
+                            ? 'border-red-200 bg-red-50 text-red-900'
+                            : sessionBanner.type === 'warning'
+                                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                                : 'border-slate-200 bg-slate-50 text-slate-900'), children: _jsxs("div", { className: "flex flex-col gap-3 md:flex-row md:items-center md:justify-between", children: [_jsx("p", { className: "font-medium", children: sessionBanner.message }), isSessionExpired ? (_jsxs("div", { className: "flex flex-wrap gap-2", children: [_jsx("button", { type: "button", className: "rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60", onClick: () => void handleRestartSession(), disabled: sessionActionPending !== null, children: sessionActionPending === 'restart' ? 'Restarting…' : 'Start new session' }), _jsx("button", { type: "button", className: "rounded-md border border-input px-3 py-1.5 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60", onClick: () => void handleRestoreSession(), disabled: sessionActionPending !== null, children: sessionActionPending === 'restore' ? 'Restoring…' : 'Restore saved draft' })] })) : null] }) })) : null;
+                })(), _jsxs("div", { className: "space-y-6", children: [_jsx(StepProgress, { steps: visibleSteps.map((stepId, index) => ({
+                                id: stepId,
+                                title: schema.steps.find((step) => step.id === stepId)?.title ?? stepId,
+                                status: stepStatusList[index],
+                            })), currentStep: currentStepId, onStepSelect: (stepId) => {
+                                if (isSessionExpired)
+                                    return;
+                                if (isReviewStep && reviewNavigation.freezeNavigation)
+                                    return;
+                                const targetIndex = visibleSteps.indexOf(stepId);
+                                if (targetIndex >= 0 && targetIndex <= currentStepIndex) {
+                                    cancelPendingNavigation();
+                                    setCurrentStepIndex(targetIndex);
+                                }
+                            } }), _jsxs("div", { className: "rounded-lg border bg-background shadow-sm", children: [_jsxs("div", { className: "border-b p-6", children: [_jsx("h2", { className: "text-lg font-semibold text-foreground", children: currentStepConfig.title }), currentStepConfig.description ? (_jsx("p", { className: "mt-2 text-sm text-muted-foreground", children: currentStepConfig.description })) : null] }), _jsxs("div", { className: "space-y-6 p-6", children: [isReviewStep ? (_jsx("div", { className: "space-y-4", "data-testid": "review-summary", children: reviewSections.length === 0 ? (_jsx("p", { className: "text-sm text-muted-foreground", children: "No responses captured yet." })) : (reviewSections.map((section) => {
+                                                const hasErrors = errorStepSet.has(section.stepId);
+                                                const isHighlighted = highlightedReviewSection === section.stepId;
+                                                return (_jsxs("div", { id: `review-section-${section.stepId}`, "data-testid": `review-section-${section.stepId}`, "data-has-errors": hasErrors ? 'true' : 'false', "data-highlighted": isHighlighted ? 'true' : 'false', className: cn('rounded-lg border p-4', hasErrors ? 'border-destructive/40 bg-destructive/5' : 'border-border', isHighlighted ? 'ring-2 ring-primary' : null), children: [_jsxs("div", { className: "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", children: [_jsxs("div", { children: [_jsx("h3", { className: "text-sm font-semibold text-foreground", children: section.title }), section.description ? (_jsx("p", { className: "text-sm text-muted-foreground", children: section.description })) : null] }), _jsx("button", { type: "button", className: "inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50", onClick: () => handleReviewSectionEdit(section.stepId), disabled: isSessionExpired, children: "Edit" })] }), section.entries.length > 0 ? (_jsx("dl", { className: "mt-4 space-y-2", children: section.entries.map((entry) => (_jsxs("div", { className: "flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between", children: [_jsx("dt", { className: "text-sm font-medium text-muted-foreground", children: entry.label }), _jsx("dd", { className: "whitespace-pre-wrap text-sm text-foreground sm:text-right", children: entry.value })] }, entry.field))) })) : (_jsx("p", { className: "mt-4 text-sm text-muted-foreground", children: "No responses provided." }))] }, section.stepId));
+                                            })) })) : null, activeLayout === 'grid' ? (_jsx(GridRenderer, { layout: schema.ui?.layout ?? {}, visibleFields: visibleFields, renderField: renderField, widgetDefinitions: widgetDefinitions, breakpointOverride: gridBreakpointOverride })) : (_jsx("div", { className: "space-y-4", children: Object.keys(stepProperties).map((fieldName) => {
+                                                const node = renderField(fieldName);
+                                                return node ? _jsx(React.Fragment, { children: node }, fieldName) : null;
+                                            }) })), _jsx(ErrorSummary, { errors: methods.formState.errors, onFocusField: focusField })] }), _jsxs("div", { className: cn('flex items-center justify-between gap-4 border-t p-6', 'bg-muted/30'), children: [_jsx("button", { type: "button", onClick: handlePrevious, disabled: currentStepIndex === 0 || isSessionExpired || isReviewFrozen, className: cn('rounded-md border border-input px-4 py-2 text-sm font-medium text-foreground transition-colors', (currentStepIndex === 0 || isSessionExpired || isReviewFrozen) && 'opacity-50'), children: "Previous" }), _jsx("div", { className: "flex gap-2", children: !isReviewStep && currentStepIndex < visibleSteps.length - 1 ? (_jsx("button", { type: "button", onClick: handleNext, className: "rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary", disabled: isSubmitting || isSessionExpired, children: "Next" })) : (_jsx("button", { type: "submit", disabled: isSubmitting || isSessionExpired, className: "rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary", children: isSubmitting ? 'Submitting…' : 'Submit' })) })] })] })] })] }) }));
+};
+export const FormRenderer = (props) => {
+    return (_jsx(FeaturesProvider, { schema: props.schema, children: _jsx(FormRendererInner, { ...props }) }));
+};
+//# sourceMappingURL=FormRenderer.js.map

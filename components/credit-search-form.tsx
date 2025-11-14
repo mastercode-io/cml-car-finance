@@ -43,6 +43,9 @@ const formSchema = z.object({
   termsAccepted: z.literal(true, {
     errorMap: () => ({ message: "You must accept the terms and conditions" }),
   }),
+  privacyPolicyAccepted: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the privacy policy" }),
+  }),
 })
 
 interface AddressResponse {
@@ -122,6 +125,7 @@ export function CreditSearchForm() {
       houseNumber: "",
       houseName: "",
       termsAccepted: false,
+      privacyPolicyAccepted: false,
     },
   });
 
@@ -679,6 +683,50 @@ export function CreditSearchForm() {
                         payment being made to the dealer. I have read and accept T&Cs and the privacy policy. I understand
                         that in order for us to investigate any further, we will conduct a soft credit check through our
                         provider ValidID and that this will not affect my credit score.
+                      </FormLabel>
+                      <FormMessage className="text-red-400" />
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {/* Privacy Policy Acceptance */}
+              <FormField
+                control={form.control}
+                name="privacyPolicyAccepted"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 py-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="border-white data-[state=checked]:bg-[#55c0c0] data-[state=checked]:border-[#55c0c0] rounded-[0.25rem]"
+                        tabIndex={11}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel
+                        className="text-sm font-normal text-gray-300"
+                        style={{ fontFamily: '"Source Sans Pro", sans-serif' }}
+                      >
+                        I agree to the{' '}
+                        <a
+                          href="https://claimmyloss.co.uk/privacy-policy/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#55c0c0] hover:underline"
+                        >
+                          HT Legal Ltd Privacy Policy
+                        </a>
+                        {' '}of HT Legal Ltd and authorise HT Legal Ltd to conduct soft credit searches through their provider Valid8 IP Ltd, with no impact on my credit score. I also agree to the{' '}
+                        <a
+                          href="https://www.valid8.cloud/Home/PrivacyPolicy"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#55c0c0] hover:underline"
+                        >
+                          Valid8 IP Privacy Policy
+                        </a>
                       </FormLabel>
                       <FormMessage className="text-red-400" />
                     </div>
